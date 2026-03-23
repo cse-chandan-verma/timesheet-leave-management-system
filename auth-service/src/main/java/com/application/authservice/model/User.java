@@ -36,7 +36,6 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    @Builder.Default
     private Role role = Role.EMPLOYEE;
 
     @Column(name = "is_active", nullable = false)
@@ -106,7 +105,7 @@ public class User {
 		this.password = password;
 	}
 
-	public Role getRole() {
+	public Role getRole() { 
 		return role;
 	}
 

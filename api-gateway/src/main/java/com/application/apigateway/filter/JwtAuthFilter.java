@@ -1,14 +1,14 @@
 package com.application.apigateway.filter;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import io.jsonwebtoken.security.SecurityException;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.GlobalFilter;   
-import org.springframework.core.Ordered;                        
+import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -17,44 +17,66 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import javax.crypto.SecretKey;
 
+/**
+ * JWT AUTH FILTER — Compatible with JJWT 0.11.x AND 0.12.x
+ *
+ * Uses GlobalFilter with a public path whitelist.
+ * No JwtAuthFilterFactory needed.
+ */
 @Component
-public class JwtAuthFilter implements GlobalFilter, Ordered {  
+public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    private static final List<String> PUBLIC_ROUTES = List.of(
+    // Public paths — no token required
+    private static final List<String> PUBLIC_PATHS = List.of(
             "/gateway/auth/login",
-            "/gateway/auth/signup",
-            "/gateway/admin/config/public",
-            "/actuator"
+            "/gateway/auth/register",
+            "/gateway/auth/validate",
+            "/gateway/auth/users"
     );
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+    public int getOrder() {
+        return -1;
+    }
 
-        ServerHttpRequest request = exchange.getRequest();
-        String path = request.getURI().getPath();
+    @Override
+    public Mono<Void> filter(ServerWebExchange exchange,
+                             GatewayFilterChain chain) {
 
-        boolean isPublicRoute = PUBLIC_ROUTES.stream()
-                .anyMatch(path::startsWith);
+        String requestPath = exchange.getRequest()
+                                     .getURI()
+                                     .getPath();
 
-        if (isPublicRoute) {
-            return chain.filter(exchange);   
+        // Skip JWT check for public paths
+        boolean isPublic = PUBLIC_PATHS.stream()
+                .anyMatch(requestPath::startsWith);
+
+        if (isPublic) {
+            return chain.filter(exchange);
         }
+
+        // Protected path — check token
+        ServerHttpRequest request = exchange.getRequest();
 
         if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
             return rejectRequest(exchange, "Authorization header is missing");
         }
 
-        String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        String authHeader = request.getHeaders()
+                                   .getFirst(HttpHeaders.AUTHORIZATION);
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return rejectRequest(exchange, "Authorization header must start with Bearer");
+            return rejectRequest(exchange,
+                    "Authorization header must start with Bearer");
         }
+
         String token = authHeader.substring(7);
 
         try {
@@ -62,42 +84,46 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
             ServerHttpRequest modifiedRequest = request.mutate()
                     .header("X-User-Email", claims.getSubject())
-                    .header("X-User-Role",  claims.get("role", String.class))
-                    .header("X-User-Id",    String.valueOf(
-                            claims.get("userId", Integer.class) != null
-                            ? claims.get("userId", Integer.class) : ""))
+                    .header("X-User-Role",
+                            claims.get("role", String.class))
+                    .header("X-User-Id",
+                            String.valueOf(claims.get("userId")))
                     .build();
 
-            return chain.filter(exchange.mutate().request(modifiedRequest).build());
+            return chain.filter(
+                    exchange.mutate().request(modifiedRequest).build());
 
-        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+        } catch (ExpiredJwtException e) {
             return rejectRequest(exchange, "JWT token has expired");
-        } catch (SecurityException e) {
-            return rejectRequest(exchange, "JWT signature is invalid");
-        } catch (io.jsonwebtoken.MalformedJwtException e) {
-            return rejectRequest(exchange, "JWT token is malformed");
+        } catch (JwtException e) {
+            return rejectRequest(exchange, "JWT token is invalid");
         } catch (Exception e) {
             return rejectRequest(exchange, "JWT token validation failed");
         }
     }
 
-    @Override
-    public int getOrder() {
-        return -1;
-    }
-
     private Claims extractClaims(String token) {
+
         SecretKey signingKey = Keys.hmacShaKeyFor(
                 jwtSecret.getBytes(StandardCharsets.UTF_8));
 
+        // ── JJWT 0.12.x API ──────────────────────────────────
         return Jwts.parser()
-                .verifyWith(signingKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+                   .verifyWith(signingKey)
+                   .build()
+                   .parseSignedClaims(token)
+                   .getPayload();
+
+        // ── JJWT 0.11.x API (old — use this if you downgrade) ─
+        // return Jwts.parserBuilder()
+        //            .setSigningKey(signingKey)
+        //            .build()
+        //            .parseClaimsJws(token)
+        //            .getBody();
     }
 
-    private Mono<Void> rejectRequest(ServerWebExchange exchange, String reason) {
+    private Mono<Void> rejectRequest(ServerWebExchange exchange,
+                                      String reason) {
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(HttpStatus.UNAUTHORIZED);
         response.getHeaders().add("X-Auth-Error", reason);

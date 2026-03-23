@@ -7,15 +7,15 @@ import lombok.NoArgsConstructor;
 
 @Data
 @Builder
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
 public class AuthResponse {
-    private String token;      
-    private String tokenType;  
-    private String role;       
-    private Long   employeeId; 
-    private String fullName;  
-    private String email;      
-    private long   expiresIn;  
-    
+	private String token;
+	private String tokenType;
+	private String role;
+	private Long employeeId;
+	private String fullName;
+	private String email;
+	private long expiresIn;
+
 }
