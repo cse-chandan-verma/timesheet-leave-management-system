@@ -1,0 +1,88 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      # Global CORS config
+      globalcors:
+        cors-configurations:
+          "[/**]":
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+
+      routes:
+        # ── Route 1: Auth Service (PUBLIC) ────────────────────────
+        # JwtAuthFilter automatically SKIPS this because /gateway/auth/**
+        # is in the PUBLIC_ROUTES list inside JwtAuthFilter.java
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/gateway/auth/**
+          filters:
+            - StripPrefix=1
+            # ✅ No JwtAuthFilter here — GlobalFilter skips public routes
+
+        # ── Route 2: Timesheet Service (PROTECTED) ────────────────
+        - id: timesheet-service
+          uri: lb://timesheet-service
+          predicates:
+            - Path=/gateway/timesheet/**
+          filters:
+            - StripPrefix=1
+            # ✅ No JwtAuthFilter here — GlobalFilter applies automatically
+
+        # ── Route 3: Leave Service (PROTECTED) ────────────────────
+        - id: leave-service
+          uri: lb://leave-service
+          predicates:
+            - Path=/gateway/leave/**
+          filters:
+            - StripPrefix=1
+            # ✅ No JwtAuthFilter here — GlobalFilter applies automatically
+
+        # ── Route 4: Admin Service (PROTECTED) ────────────────────
+        - id: admin-service
+          uri: lb://admin-service
+          predicates:
+            - Path=/gateway/admin/**
+          filters:
+            - StripPrefix=1
+            # ✅ No JwtAuthFilter here — GlobalFilter applies automatically
+            # Role check (MANAGER/ADMIN) handled inside Admin Service
+            # using @PreAuthorize — Gateway only validates JWT
+
+# ── Eureka Client ──────────────────────────────────────────────
+eureka:
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true
+
+# ── JWT Secret ─────────────────────────────────────────────────
+jwt:
+  secret: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
+  # IMPORTANT: Must be identical in every single service
+
+# ── Logging ────────────────────────────────────────────────────
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    reactor.netty: WARN
+
+# ── Actuator ───────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,gateway"    # ✅ Fixed: was health, info, gateway
+  endpoint:
+    health:
+      show-details: always
