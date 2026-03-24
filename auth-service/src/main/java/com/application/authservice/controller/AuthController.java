@@ -62,6 +62,14 @@ public class AuthController {
         return ResponseEntity.ok("Token is valid");
     }
     
+    @PostMapping("/register/admin")
+    public ResponseEntity<String> registerAdmin(
+            @Valid @RequestBody RegisterRequest request,
+            @RequestParam String role) {
+    	
+        String message = authService.registerWithRole(request, role);
+        return ResponseEntity.status(HttpStatus.CREATED).body(message);
+    }
     @GetMapping("/users")
     public ResponseEntity<List<UserResponse>> getUsers(){
     	return ResponseEntity.ok(authService.getAllUsers());

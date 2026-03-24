@@ -20,6 +20,7 @@ import com.application.authservice.model.User;
 import com.application.authservice.repository.UserRepository;
 import com.application.authservice.security.JwtUtil;
 
+
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
@@ -116,6 +117,38 @@ public class AuthService {
 				.stream()
 				.map(this::mapToUserResponse)
 				.collect(Collectors.toList());
+	}
+	@Transactional
+	public String registerWithRole(RegisterRequest request, String role) {
+
+	    if (!request.getPassword().equals(request.getConfirmPassword())) {
+	        throw new RuntimeException("Passwords do not match");
+	    }
+
+	    if (userRepository.existsByEmail(request.getEmail())) {
+	        throw new RuntimeException("Email already registered");
+	    }
+
+	    // Convert string role to enum
+	    User.Role userRole;
+	    try {
+	        userRole = User.Role.valueOf(role.toUpperCase());
+	    } catch (IllegalArgumentException e) {
+	        throw new RuntimeException(
+	            "Invalid role. Must be EMPLOYEE, MANAGER or ADMIN");
+	    }
+
+	    User user = User.builder()
+	            .employeeCode(request.getEmployeeCode())
+	            .fullName(request.getFullName())
+	            .email(request.getEmail())
+	            .password(passwordEncoder.encode(request.getPassword()))
+	            .role(userRole)    // ← uses the provided role
+	            .isActive(true)
+	            .build();
+
+	    userRepository.save(user);
+	    return "User registered successfully with role: " + userRole;
 	}
 	
 	private UserResponse mapToUserResponse(User user) {

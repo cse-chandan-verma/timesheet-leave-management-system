@@ -1,13 +1,12 @@
-
 server:
-  port: 8081
+  port: 8082
 
 spring:
   application:
-    name: auth-service
+    name: timesheet-service
 
   datasource:
-    url: jdbc:mysql://localhost:3306/tms_auth_db?createDatabaseIfNotExist=true
+    url: jdbc:mysql://localhost:3306/tms_timesheet_db?createDatabaseIfNotExist=true
     username: root
     password: ch@nd@n_V03
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -19,20 +18,23 @@ spring:
     properties:
       hibernate:
         format-sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: 5672
     username: guest
     password: guest
+    listener:
+      simple:
+        acknowledge-mode: auto
+        retry:
+          enabled: true
+          max-retries: 3
 
 eureka:
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
-    lease-renewal-interval-in-seconds: 10
-    lease-expiration-duration-in-seconds: 30
   client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka}
@@ -41,11 +43,8 @@ eureka:
 
 jwt:
   secret: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
-  expiration: 86400000   
 
 springdoc:
-  api-docs:
-    path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
 
@@ -53,4 +52,4 @@ management:
   endpoints:
     web:
       exposure:
-        include: "health, info"
+        include: health, info
