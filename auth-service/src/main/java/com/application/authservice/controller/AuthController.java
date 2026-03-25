@@ -1,79 +1,161 @@
 package com.application.authservice.controller;
 
+import com.application.authservice.dto.*;
+import com.application.authservice.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.List;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import com.application.authservice.dto.AuthResponse;
-import com.application.authservice.dto.LoginRequest;
-import com.application.authservice.dto.RegisterRequest;
-import com.application.authservice.dto.UserResponse;
-import com.application.authservice.service.AuthService;
-
-
+@Slf4j
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
-@Slf4j
+@Tag(name = "Authentication", description = "Auth, Profile and Role Management APIs")
 public class AuthController {
 
     private final AuthService authService;
 
-    @PostMapping("/register")
 
-    
+    // ══════════════════════════════════════════════════════════
+    // PUBLIC ENDPOINTS — No token required
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * REGISTER
+     * Open to everyone. Always creates EMPLOYEE role.
+     * No role field in request body by design.
+     */
+    @PostMapping("/register")
+    @Operation(
+        summary = "Register new employee",
+        description = "Creates a new account. Role is always EMPLOYEE. "
+                    + "Role promotion done separately by Admin only."
+    )
     public ResponseEntity<String> register(
             @Valid @RequestBody RegisterRequest request) {
-        log.info("Register request received for email: {}", request.getEmail());
-
-        String message = authService.register(request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(message);
+                .body(authService.register(request));
     }
 
+    /**
+     * LOGIN
+     * Open to everyone.
+     */
     @PostMapping("/login")
+    @Operation(
+        summary = "Login",
+        description = "Returns JWT token with role and user info"
+    )
     public ResponseEntity<AuthResponse> login(
             @Valid @RequestBody LoginRequest request) {
 
-        log.info("Login request received for email: {}", request.getEmail());
-        AuthResponse response = authService.login(request);
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(authService.login(request));
     }
-    @GetMapping("/validate")
-    public ResponseEntity<String> validateToken(
-            @RequestHeader("Authorization") String authHeader) {
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return ResponseEntity
-                    .status(HttpStatus.UNAUTHORIZED)
-                    .body("Missing or malformed Authorization header");
-        }
 
-        String token = authHeader.substring(7);
-        return ResponseEntity.ok("Token is valid");
+    // ══════════════════════════════════════════════════════════
+    // PROTECTED ENDPOINTS — Valid JWT required
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * GET MY PROFILE
+     * Any logged-in user can view their own profile.
+     * Email is read from the JWT token via X-User-Email header.
+     */
+    @GetMapping("/profile")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+        summary = "Get my profile",
+        description = "Returns profile of the currently logged-in user"
+    )
+    public ResponseEntity<UserProfileResponse> getProfile(
+            @RequestHeader("X-User-Email") String email) {
+        // X-User-Email is added by the Gateway after JWT validation
+        // On Swagger, add it manually in the header
+
+        return ResponseEntity.ok(authService.getProfile(email));
+    }
+
+    /**
+     * UPDATE MY PROFILE
+     * Any logged-in user can update their own profile.
+     * Can update: fullName, password
+     * Cannot update: email, employeeCode, role
+     */
+    @PutMapping("/profile")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+        summary = "Update my profile",
+        description = "Update fullName or password. "
+                    + "To change password, provide currentPassword too."
+    )
+    public ResponseEntity<UserProfileResponse> updateProfile(
+            @RequestHeader("X-User-Email") String email,
+            @Valid @RequestBody UpdateProfileRequest request) {
+
+        return ResponseEntity.ok(
+                authService.updateProfile(email, request));
+    }
+
+
+    // ══════════════════════════════════════════════════════════
+    // ADMIN-ONLY ENDPOINTS — ADMIN role required
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * PROMOTE ROLE — ADMIN ONLY
+     *
+     * Only ADMIN can call this endpoint.
+     * @PreAuthorize("hasRole('ADMIN')") enforces this at the method level.
+     *
+     * If a MANAGER or EMPLOYEE tries to call this:
+     *   → 403 Forbidden automatically
+     *
+     * Use case: HR promotes an employee to MANAGER or ADMIN.
+     */
+    @PutMapping("/admin/promote")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+        summary = "Promote user role (Admin only)",
+        description = "Only ADMIN can promote a user to MANAGER or ADMIN. "
+                    + "User must re-login after promotion for new role to apply."
+    )
+    public ResponseEntity<String> promoteRole(
+            @Valid @RequestBody PromoteRoleRequest request) {
+
+        return ResponseEntity.ok(authService.promoteRole(request));
     }
     
-    @PostMapping("/register/admin")
-    public ResponseEntity<String> registerAdmin(
-            @Valid @RequestBody RegisterRequest request,
-            @RequestParam String role) {
-    	
-        String message = authService.registerWithRole(request, role);
-        return ResponseEntity.status(HttpStatus.CREATED).body(message);
+    @PostMapping("/forgot-password")
+    public ResponseEntity<String> forgotPassword(
+            @Valid @RequestBody
+                ForgotPasswordRequest request) {
+        authService.forgotPassword(request);
+        return ResponseEntity.ok(
+            "Password updated successfully!");
     }
-    @GetMapping("/users")
-    public ResponseEntity<List<UserResponse>> getUsers(){
-    	return ResponseEntity.ok(authService.getAllUsers());
+
+    /**
+     * GET ANY USER'S PROFILE — ADMIN ONLY
+     * Admin can view any employee's profile by email.
+     */
+    @GetMapping("/admin/user/{email}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+        summary = "Get any user's profile (Admin only)",
+        description = "Admin can look up any employee's profile by email"
+    )
+    public ResponseEntity<UserProfileResponse> getUserProfile(
+            @PathVariable String email) {
+
+        return ResponseEntity.ok(authService.getProfile(email));
     }
-    
-    
 }

@@ -42,11 +42,13 @@ eureka:
     fetch-registry: true
 
 jwt:
-  secret: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
+   secret: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
 
 springdoc:
+  api-docs:
+    path: /v3/api-docs
   swagger-ui:
-    path: /swagger-ui.html
+      path: /swagger-ui.html
 
 management:
   endpoints:

@@ -38,7 +38,15 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             "/gateway/auth/login",
             "/gateway/auth/register",
             "/gateway/auth/validate",
-            "/gateway/auth/users"
+            "/gateway/auth/users",
+
+            // Swagger UI paths for all services
+            "/gateway/timesheet/v3/api-docs",
+            "/gateway/timesheet/swagger-ui/**",
+            "/gateway/leave/v3/api-docs",
+            "/gateway/leave/swagger-ui/**",
+            "/gateway/admin/v3/api-docs",
+            "/gateway/admin/swagger-ui/**"
     );
 
     @Override

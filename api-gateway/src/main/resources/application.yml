@@ -54,7 +54,7 @@ eureka:
     fetch-registry: true
 
 jwt:
-  secret: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
+ secret: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
 
 logging:
   level:

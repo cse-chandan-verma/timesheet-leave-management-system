@@ -1,5 +1,6 @@
 package com.application.authservice.config;
 
+import com.application.authservice.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,8 +21,6 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import com.application.authservice.repository.UserRepository;
-import com.application.authservice.security.JwtAuthFilter;
-
 
 @Configuration
 @EnableWebSecurity
@@ -29,65 +28,72 @@ import com.application.authservice.security.JwtAuthFilter;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthFilter jwtAuthFilter;
+    private final JwtAuthFilter  jwtAuthFilter;
     private final UserRepository userRepository;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http)
             throws Exception {
-
         http
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+
+                // ── Public endpoints — no token needed ──────────
                 .requestMatchers(
                     "/auth/login",
-                    "/auth/register",
-                    "/auth/users",
-                    "/auth/register/admin"
+                    "/auth/register"
+                    // NOTE: /auth/admin/promote is NOT here
+                    // It requires ADMIN role — enforced by @PreAuthorize
                 ).permitAll()
+
+                // ── Swagger UI — public for development ─────────
                 .requestMatchers(
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/v3/api-docs/**",
-                    "/v3/api-docs"
+                    "/v3/api-docs",
+                    "/webjars/**"
                 ).permitAll()
+
+                // ── Actuator health ──────────────────────────────
                 .requestMatchers("/actuator/health").permitAll()
+
+                // ── Everything else requires valid JWT ───────────
+                // Fine-grained role checks done by @PreAuthorize
+                // on each method in the controller
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())
-            .addFilterBefore(
-                jwtAuthFilter,
-                UsernamePasswordAuthenticationFilter.class
-            );
+            .addFilterBefore(jwtAuthFilter,
+                    UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
-
 
     @Bean
     public UserDetailsService userDetailsService() {
         return username -> userRepository
                 .findByEmail(username)
-                .map(user -> org.springframework.security.core.userdetails
-                        .User.builder()
+                .map(user -> org.springframework.security.core
+                        .userdetails.User.builder()
                         .username(user.getEmail())
                         .password(user.getPassword())
                         .roles(user.getRole().name())
-                        .build()
-                )
-                .orElseThrow(() ->
-                    new UsernameNotFoundException(
-                        "User not found with email: " + username)
-                );
+                        .build())
+                .orElseThrow(() -> new UsernameNotFoundException(
+                        "User not found: " + username));
     }
+
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService());
-
+        DaoAuthenticationProvider provider =
+                new DaoAuthenticationProvider(userDetailsService());
         provider.setPasswordEncoder(passwordEncoder());
         return provider;
     }
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
