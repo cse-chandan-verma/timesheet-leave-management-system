@@ -2,9 +2,9 @@
 
 ## 📌 Overview
 
-This project is a **Timesheet & Leave Management System** designed to help organizations manage employee work hours, leave requests, and approval workflows in a structured and efficient way.
+This project is a **microservices-based backend system** designed to manage employee timesheets, leave requests, and role-based access within an organization.
 
-It replaces manual processes like spreadsheets and email-based approvals with a centralized backend system built using **Spring Boot Microservices architecture**.
+It replaces manual tracking with a scalable, secure, and structured system built using **Spring Boot and Spring Cloud**.
 
 ---
 
@@ -13,34 +13,53 @@ It replaces manual processes like spreadsheets and email-based approvals with a 
 * **Java 17**
 * **Spring Boot**
 * **Spring Cloud (Eureka, API Gateway)**
-* **Spring Security + JWT**
+* **Spring Security**
+* **JWT (Authentication)**
 * **Spring Data JPA (Hibernate)**
 * **MySQL**
-* **RabbitMQ** (planned)
-* **JUnit & Mockito** (planned)
-* **Swagger/OpenAPI** (planned migration from Postman)
+* **Swagger / OpenAPI**
+* **RabbitMQ (planned)**
+* **JUnit & Mockito (planned)**
 
 ---
 
 ## 🏗️ Architecture
 
-This project follows a **microservices-based architecture** with service discovery and centralized routing.
+This project follows a **microservices architecture** with centralized routing and security.
 
 ### 🔹 Services
 
-| Service Name                  | Description                                                   |
-| ----------------------------- | ------------------------------------------------------------- |
-| **Auth Service**              | Handles authentication, JWT generation, and role-based access |
-| **Timesheet Service**         | Manages employee work entries and timesheet submission        |
-| **Leave Service** *(Planned)* | Handles leave requests and balance tracking                   |
-| **Admin Service** *(Planned)* | Manages approvals, reports, and master data                   |
+| Service Name          | Description                                                           |
+| --------------------- | --------------------------------------------------------------------- |
+| **Auth Service**      | Handles user registration, login, JWT generation, and role management |
+| **Timesheet Service** | Manages daily entries and weekly timesheets                           |
+| **Leave Service**     | Handles leave application and validation                              |
+| **Admin Service**     | Manages administrative operations and approvals                       |
 
 ---
 
-### 🔹 Infrastructure Components
+### 🔹 Infrastructure
 
 * **Eureka Server** → Service discovery
-* **API Gateway** → Single entry point for all requests
+* **API Gateway** → Centralized routing & authentication
+
+---
+
+## 🔐 Security Architecture
+
+* JWT is **generated in Auth Service**
+
+* JWT is **validated in API Gateway**
+
+* Gateway forwards user details via headers:
+
+  * `X-User-Email`
+  * `X-User-Role`
+  * `X-User-Id`
+
+* Downstream services **do not validate JWT again**
+
+* Role-based access is enforced using `@PreAuthorize`
 
 ---
 
@@ -50,156 +69,143 @@ This project follows a **microservices-based architecture** with service discove
 Client → API Gateway → Microservice → Database
 ```
 
-* All services register with **Eureka**
-* Requests pass through **API Gateway**
-* Gateway routes requests to appropriate service
-* JWT is used for authentication and authorization
-
----
-
-## 🔐 Security
-
-* Implemented using **Spring Security + JWT**
-* Role-based access:
-
-  * **Employee**
-  * **Manager**
-  * **Admin**
-* Token-based authentication for secure API access
-
 ---
 
 ## ✅ Features Implemented
 
-### 🔹 Auth Service
+### 🔹 Authentication
 
-* User registration
-* Login with JWT token generation
-* Role-based authentication setup
+* User registration (default role: EMPLOYEE)
+* Login with JWT token
+* Role-based access control
+* Admin-only role promotion
+
+---
 
 ### 🔹 Timesheet Service
 
-* Add daily work entries
-* Store timesheet data in MySQL
-* JPA/Hibernate integration
-* Basic validation support
-
-### 🔹 Infrastructure
-
-* Eureka Server configured
-* API Gateway routing setup
-* Service registration and communication working
+* Add daily entries
+* Weekly timesheet submission
+* View timesheet history
+* Validation (hours, duplicate entries)
 
 ---
 
-## 🚧 Features In Progress
+### 🔹 Leave Service
 
-* Leave Service (apply leave, balance tracking)
-* Admin Service (approvals & reporting)
-* RabbitMQ integration (async communication)
-* Unit testing using JUnit & Mockito
-* Advanced validation (duplicate entries, weekly checks)
+* Apply leave
+* Leave validation (date range, overlap)
+* Leave history & balance
 
 ---
 
-## 🗄️ Database
+### 🔹 Admin Service
 
-* MySQL is used as the primary database
-* Each microservice manages its own data
-* JPA/Hibernate is used for ORM
-* Auto schema update enabled (`ddl-auto=update`)
+* Manage system-level operations
+* Role-based restrictions
+
+---
+
+### 🔹 API Documentation
+
+* Swagger integrated for all services
+* Easy API testing and exploration
 
 ---
 
 ## 📬 API Testing
 
-* APIs are currently tested using **Postman**
-* Swagger UI (Springdoc OpenAPI) will be used for interactive API documentation
+### 🔹 Swagger
 
 Example:
 
-```text
+```
 http://localhost:8082/swagger-ui.html
+```
+
+### 🔹 Postman (via Gateway)
+
+```
+http://localhost:8080/<service-endpoint>
 ```
 
 ---
 
-## ▶️ How to Run the Project
+## ▶️ How to Run
 
-### 1. Start Services in Order:
+### 1. Start services in order:
 
-1. Eureka Server
-2. API Gateway
-3. Auth Service
-4. Timesheet Service
-
----
-
-### 2. Database Setup
-
-* Ensure MySQL is running on port `3306`
-* Database will be auto-created if not present
+1. Eureka Server (8761)
+2. API Gateway (8080)
+3. Auth Service (8081)
+4. Timesheet Service (8082)
+5. Leave Service (8083)
+6. Admin Service (8084)
 
 ---
 
-### 3. Run Application
+### 2. Database
 
-* Run each service as a Spring Boot application
-* Verify services are registered in Eureka Dashboard:
+* MySQL running on port `3306`
+* Databases auto-created
 
-```text
+---
+
+### 3. Verify Eureka
+
+```
 http://localhost:8761
 ```
 
 ---
 
-## 📁 Project Structure (Per Service)
+## 📁 Project Structure
 
-```text
-controller → handles API requests
-service → business logic
-repository → database interaction
-entity → database models
-dto → request/response models
-config → security/configuration classes
+```
+timesheet-leave-management-system/
+│
+├── eureka-server/
+├── api-gateway/
+├── auth-service/
+├── timesheet-service/
+├── leave-service/
+├── admin-service/
+│
+├── docs/
+├── README.md
 ```
 
 ---
 
-## 🧪 Testing (Planned)
+## 🧠 Key Design Decisions
 
-* Unit testing using **JUnit 5**
-* Mocking using **Mockito**
-* Focus on:
-
-  * Service layer logic
-  * Validation rules
+* Centralized authentication at API Gateway
+* No JWT validation in downstream services
+* Role-based authorization using Spring Security
+* Clean separation of microservices
 
 ---
 
 ## 🎯 Project Goal
 
-The goal of this project is to demonstrate:
-
-* Real-world **microservices architecture**
-* Secure backend using **JWT authentication**
-* Proper **service separation and communication**
-* Scalable and maintainable backend design
+* Demonstrate real-world **microservices architecture**
+* Implement secure backend using **JWT & Spring Security**
+* Build scalable and maintainable backend system
 
 ---
 
 ## 📌 Future Enhancements
 
-* RabbitMQ for event-driven communication
+* RabbitMQ for async communication
 * Docker containerization
-* Advanced reporting APIs
-* Notification system
-* Integration with frontend
+* CI/CD pipeline
+* Email notifications
+* Frontend integration
 
 ---
 
 ## 👨‍💻 Author
 
-Developed as part of training and evaluation project.
+Developed as part of Capgemini training and evaluation.
 
 ---
