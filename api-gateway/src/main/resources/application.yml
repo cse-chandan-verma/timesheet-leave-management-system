@@ -7,41 +7,26 @@ spring:
 
   cloud:
     gateway:
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowedOrigins: "*"
-            allowedMethods: "*"
-            allowedHeaders: "*"
+         routes:
+         - id: auth-service
+           uri: lb://auth-service
+           predicates:
+            - Path=/auth/**
 
-      routes:
-        - id: auth-service
-          uri: lb://auth-service
-          predicates:
-            - Path=/gateway/auth/**
-          filters:
-            - StripPrefix=1
+         - id: timesheet-service
+           uri: lb://timesheet-service
+           predicates:
+            - Path=/timesheet/**
 
-        - id: timesheet-service
-          uri: lb://timesheet-service
-          predicates:
-            - Path=/gateway/timesheet/**
-          filters:
-            - StripPrefix=1
+         - id: leave-service
+           uri: lb://leave-service
+           predicates:
+             - Path=/leave/**
 
-        - id: leave-service
-          uri: lb://leave-service
-          predicates:
-            - Path=/gateway/leave/**
-          filters:
-            - StripPrefix=1
-
-        - id: admin-service
-          uri: lb://admin-service
-          predicates:
-            - Path=/gateway/admin/**
-          filters:
-            - StripPrefix=1
+         - id: admin-service
+           uri: lb://admin-service
+           predicates:
+            - Path=/admin/**
 
 eureka:
   instance:

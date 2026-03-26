@@ -1,0 +1,247 @@
+
+
+# ═══════════════════════════════════════════════════════════════
+# TMS — Docker Compose
+# Run: docker-compose up --build
+# Stop: docker-compose down
+# Stop + delete data: docker-compose down -v
+# ═══════════════════════════════════════════════════════════════
+
+services:
+
+  # ── 1. MySQL ─────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: tms-mysql
+    restart: unless-stopped
+    # unless-stopped = restart automatically unless manually stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ch@nd@n_V03
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ch@nd@n_V03
+    ports:
+      - "3306:3306"
+      # host:container — access from local MySQL Workbench
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Persistent storage — data survives container restarts
+      - ./init-scripts:/docker-entrypoint-initdb.d
+      # SQL files here run automatically on FIRST startup
+    networks:
+      - tms-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping",
+             "-h", "localhost",
+             "-u", "root",
+             "-ch@nd@n_V03"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+      # Spring services wait until this passes before starting
+
+
+  # ── 2. RabbitMQ ───────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    # management tag includes the web UI on port 15672
+    container_name: tms-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      # AMQP port — used by Spring services
+      - "15672:15672"
+      # Management UI — open http://localhost:15672
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json
+    networks:
+      - tms-network
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+
+  # ── 3. Eureka Server ──────────────────────────────────────────
+  eureka-server:
+    build:
+      context: ./eureka-server
+      # Docker looks for Dockerfile in this folder
+      dockerfile: Dockerfile
+    container_name: tms-eureka
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    networks:
+      - tms-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1",
+             "--spider", "http://localhost:8761/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+
+  # ── 4. API Gateway ────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: tms-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      # Use container name NOT localhost — containers talk by name
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - tms-network
+
+
+  # ── 5. Auth Service ───────────────────────────────────────────
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: tms-auth
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      # Database
+      DB_URL: jdbc:mysql://mysql:3306/tms_auth_db?createDatabaseIfNotExist=true
+      # mysql = container name, NOT localhost
+      DB_USERNAME: root
+      DB_PASSWORD: ch@nd@n_V03
+      # Eureka
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      # RabbitMQ
+      RABBITMQ_HOST: rabbitmq
+      # Container name NOT localhost
+      # JWT
+      JWT_SECRET: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
+      JWT_EXPIRATION: 86400000
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - tms-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1",
+             "--spider", "http://localhost:8081/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+
+  # ── 6. Timesheet Service ──────────────────────────────────────
+  timesheet-service:
+    build:
+      context: ./timesheet-service
+      dockerfile: Dockerfile
+    container_name: tms-timesheet
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/tms_timesheet_db?createDatabaseIfNotExist=true
+      DB_USERNAME: root
+      DB_PASSWORD: ch@nd@n_V03
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      RABBITMQ_HOST: rabbitmq
+      JWT_SECRET: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - tms-network
+
+
+  # ── 7. Leave Service ──────────────────────────────────────────
+  leave-service:
+    build:
+      context: ./leave-service
+      dockerfile: Dockerfile
+    container_name: tms-leave
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/tms_leave_db?createDatabaseIfNotExist=true
+      DB_USERNAME: root
+      DB_PASSWORD: ch@nd@n_V03
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      RABBITMQ_HOST: rabbitmq
+      JWT_SECRET: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - tms-network
+
+
+  # ── 8. Admin Service ──────────────────────────────────────────
+  admin-service:
+    build:
+      context: ./admin-service
+      dockerfile: Dockerfile
+    container_name: tms-admin
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/tms_admin_db?createDatabaseIfNotExist=trues
+      DB_USERNAME: root
+      DB_PASSWORD: ch@nd@n_V03
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka
+      RABBITMQ_HOST: rabbitmq
+      JWT_SECRET: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - tms-network
+
+
+# ── Networks ──────────────────────────────────────────────────
+networks:
+  tms-network:
+    driver: bridge
+    # All containers on same network can talk to each other
+    # by container name instead of IP address
+
+
+# ── Persistent Volumes ────────────────────────────────────────
+volumes:
+  mysql_data:
+    # MySQL data persists even when containers are stopped
+  rabbitmq_data:
+    # RabbitMQ queues and messages persist

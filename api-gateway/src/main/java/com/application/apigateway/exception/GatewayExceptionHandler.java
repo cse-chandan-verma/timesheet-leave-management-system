@@ -1,20 +1,20 @@
 package com.application.apigateway.exception;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+
 import org.springframework.boot.web.reactive.error.ErrorWebExceptionHandler;
-import org.springframework.core.annotation.Order;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
+
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-
 @Component
-@Order(-1)
+
 public class GatewayExceptionHandler implements ErrorWebExceptionHandler {
 
     @Override

@@ -31,7 +31,7 @@ public class UpdateProfileRequest {
     @Size(min = 8,
           message = "New password must be at least 8 characters")
     @Pattern(
-        regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).*$",
+        regexp = "^^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$",
         message = "New password must have uppercase, lowercase and number"
     )
     private String newPassword;

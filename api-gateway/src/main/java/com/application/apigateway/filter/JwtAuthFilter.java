@@ -35,18 +35,19 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     // Public paths — no token required
     private static final List<String> PUBLIC_PATHS = List.of(
-            "/gateway/auth/login",
-            "/gateway/auth/register",
-            "/gateway/auth/validate",
-            "/gateway/auth/users",
+            "/auth/login",
+            "/auth/register",
+            "/auth/validate",
+            "/auth/users",
 
             // Swagger UI paths for all services
-            "/gateway/timesheet/v3/api-docs",
-            "/gateway/timesheet/swagger-ui/**",
-            "/gateway/leave/v3/api-docs",
-            "/gateway/leave/swagger-ui/**",
-            "/gateway/admin/v3/api-docs",
-            "/gateway/admin/swagger-ui/**"
+            "/timesheet/v3/api-docs",
+            "/timesheet/swagger-ui/**",
+            "/leave/v3/api-docs",
+            "/leave/swagger-ui/**",
+            "/v3/api-docs",
+            "/swagger-ui/**",
+            "/swagger-ui.html"
     );
 
     @Override
@@ -64,7 +65,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
         // Skip JWT check for public paths
         boolean isPublic = PUBLIC_PATHS.stream()
-                .anyMatch(requestPath::startsWith);
+                .anyMatch(requestPath::contains);
 
         if (isPublic) {
             return chain.filter(exchange);

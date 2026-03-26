@@ -29,7 +29,7 @@ public class TimesheetController {
 
     // ── Add daily entry ──────────────────────────────────────
     @PostMapping("/entries")
-    @PreAuthorize("hasRole('EMPLOYEE') or hasRole('MANAGER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'EMPLOYEE')")
     public ResponseEntity<TimesheetEntryResponse> addEntry(
             @RequestHeader("X-User-Id") Long employeeId,
             @RequestHeader("X-User-Email") String employeeName,
@@ -44,7 +44,6 @@ public class TimesheetController {
 
     // ── Get weekly timesheet ─────────────────────────────────
     @GetMapping("/weeks/{weekStart}")
-    @PreAuthorize("hasRole('EMPLOYEE') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<WeeklyTimesheetResponse> getWeeklyTimesheet(
             @RequestHeader("X-User-Id") Long employeeId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
@@ -56,7 +55,6 @@ public class TimesheetController {
 
     // ── Submit weekly timesheet ──────────────────────────────
     @PostMapping("/weeks/submit")
-    @PreAuthorize("hasRole('EMPLOYEE') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<String> submitTimesheet(
             @RequestHeader("X-User-Id") Long employeeId,
             @RequestHeader("X-User-Email") String employeeName,
@@ -69,7 +67,6 @@ public class TimesheetController {
 
     // ── Get all timesheets (history) ─────────────────────────
     @GetMapping("/history")
-    @PreAuthorize("hasRole('EMPLOYEE') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<List<WeeklyTimesheetResponse>> getHistory(
             @RequestHeader("X-User-Id") Long employeeId) {
 
@@ -79,7 +76,6 @@ public class TimesheetController {
 
     // ── Get active projects (for dropdown) ───────────────────
     @GetMapping("/projects")
-    @PreAuthorize("hasRole('EMPLOYEE') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<List<Project>> getProjects() {
         return ResponseEntity.ok(timesheetService.getActiveProjects());
     }
