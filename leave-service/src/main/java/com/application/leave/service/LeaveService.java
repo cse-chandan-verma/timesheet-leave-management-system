@@ -1,20 +1,25 @@
-
 package com.application.leave.service;
-
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.application.leave.dto.ApproveRejectLeaveRequest;
+import com.application.leave.dto.HolidayRequest;
+import com.application.leave.dto.HolidayResponse;
 import com.application.leave.dto.LeaveBalanceResponse;
 import com.application.leave.dto.LeaveRequestDto;
 import com.application.leave.dto.LeaveResponse;
+import com.application.leave.dto.LeaveTypeResponse;
+import com.application.leave.entity.Holiday;
 import com.application.leave.entity.LeaveBalance;
 import com.application.leave.entity.LeaveRequest;
 import com.application.leave.entity.LeaveRequest.LeaveStatus;
 import com.application.leave.entity.LeaveType;
+import com.application.leave.exception.LeaveException;
 import com.application.leave.messaging.LeaveEventPublisher;
+import com.application.leave.repository.HolidayRepository;
 import com.application.leave.repository.LeaveBalanceRepository;
 import com.application.leave.repository.LeaveRequestRepository;
 import com.application.leave.repository.LeaveTypeRepository;
@@ -22,6 +27,7 @@ import com.application.leave.repository.LeaveTypeRepository;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -29,100 +35,106 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class LeaveService {
 
-    private final LeaveRequestRepository  leaveRequestRepo;
-    private final LeaveBalanceRepository  leaveBalanceRepo;
-    private final LeaveTypeRepository     leaveTypeRepo;
-    private final LeaveEventPublisher     eventPublisher;
-
+    private final LeaveRequestRepository leaveRequestRepo;
+    private final LeaveBalanceRepository leaveBalanceRepo;
+    private final LeaveTypeRepository    leaveTypeRepo;
+    private final HolidayRepository      holidayRepo;
+    private final LeaveEventPublisher    eventPublisher;
 
     // ══════════════════════════════════════════════════════════
-    // 1. APPLY LEAVE
+    // EMPLOYEE: APPLY LEAVE
     // ══════════════════════════════════════════════════════════
 
     /**
      * FLOW:
-     *   1. Validate leave type exists
-     *   2. Validate dates (from <= to, not in past)
-     *   3. Calculate working days
-     *   4. Check leave balance is sufficient
-     *   5. Check no overlapping leave
-     *   6. Save request
-     *   7. Publish RabbitMQ event
+     *  1. Validate leave type exists and is active
+     *  2. Validate dates (from <= to, not in past, no cross-year spanning)
+     *  3. Calculate working days (Mon–Fri, excluding public holidays)
+     *  4. Check leave balance is sufficient
+     *  5. Check no overlapping active leave
+     *  6. Save request (status = SUBMITTED — balance NOT deducted yet)
+     *  7. Publish RabbitMQ event
+     *
+     * NOTE: Balance is deducted only on APPROVAL, not on application.
      */
     @Transactional
-    public LeaveResponse applyLeave(Long employeeId,
-                                     String employeeName,
-                                     LeaveRequestDto request) {
+    public LeaveResponse applyLeave(Long employeeId, String employeeEmail, LeaveRequestDto request) {
 
         // Step 1: Validate leave type
-        LeaveType leaveType = leaveTypeRepo
-                .findById(request.getLeaveTypeId())
-                .orElseThrow(() -> new RuntimeException(
-                        "Leave type not found with ID: "
-                        + request.getLeaveTypeId()));
+        LeaveType leaveType = leaveTypeRepo.findById(request.getLeaveTypeId())
+                .orElseThrow(() -> new LeaveException(
+                        "Leave type not found with ID: " + request.getLeaveTypeId()));
 
         if (!leaveType.isActive()) {
-            throw new RuntimeException(
-                    "Leave type '" + leaveType.getTypeName()
-                    + "' is currently inactive");
+            throw new LeaveException(
+                    "Leave type '" + leaveType.getTypeName() + "' is currently inactive.");
         }
 
         // Step 2: Validate dates
         if (request.getFromDate().isAfter(request.getToDate())) {
-            throw new RuntimeException(
-                    "From date cannot be after To date");
+            throw new LeaveException("From date cannot be after To date.");
         }
 
         if (request.getFromDate().isBefore(LocalDate.now())) {
-            throw new RuntimeException(
-                    "Cannot apply leave for past dates");
+            throw new LeaveException("Cannot apply leave for past dates.");
         }
 
-        // Step 3: Calculate working days (Mon-Fri only)
+        // Guard: leave spanning two calendar years must be split into two requests
+        if (request.getFromDate().getYear() != request.getToDate().getYear()) {
+            throw new LeaveException(
+                    "Leave cannot span across two calendar years. "
+                    + "Please submit two separate requests — one for each year.");
+        }
+
+        // Step 3: Calculate working days (excludes weekends + public holidays)
+        List<LocalDate> holidays = holidayRepo
+                .findByHolidayDateBetween(request.getFromDate(), request.getToDate())
+                .stream()
+                .map(Holiday::getHolidayDate)
+                .collect(Collectors.toList());
+
         int totalDays = calculateWorkingDays(
-                request.getFromDate(), request.getToDate());
+                request.getFromDate(), request.getToDate(), holidays);
 
         if (totalDays == 0) {
-            throw new RuntimeException(
-                    "Selected date range has no working days");
+            throw new LeaveException(
+                    "Selected date range has no working days "
+                    + "(all days are weekends or public holidays).");
         }
 
         // Step 4: Check leave balance
         int year = request.getFromDate().getYear();
         LeaveBalance balance = leaveBalanceRepo
-                .findByEmployeeIdAndLeaveTypeIdAndYear(
-                        employeeId, leaveType.getId(), year)
-                .orElseThrow(() -> new RuntimeException(
-                        "No leave balance found for "
-                        + leaveType.getTypeName()
-                        + " in year " + year
-                        + ". Please contact HR."));
+                .findByEmployeeIdAndLeaveTypeIdAndYear(employeeId, leaveType.getId(), year)
+                .orElseThrow(() -> new LeaveException(
+                        "No leave balance found for '" + leaveType.getTypeName()
+                        + "' in year " + year + ". Please contact HR."));
 
         if (totalDays > balance.getRemainingDays()) {
-            throw new RuntimeException(
-                    "Insufficient " + leaveType.getTypeName()
-                    + " balance. Requested: " + totalDays
-                    + " days. Available: "
-                    + balance.getRemainingDays() + " days.");
+            throw new LeaveException(
+                    "Insufficient " + leaveType.getTypeName() + " balance. "
+                    + "Requested: " + totalDays + " days. "
+                    + "Available: " + balance.getRemainingDays() + " days.");
         }
 
-        // Step 5: Check overlapping leave
+        // Step 5: Check for overlapping active leave
+        // FIX: statuses passed as typed list — not as raw string literals in JPQL
         boolean overlap = leaveRequestRepo.existsOverlappingLeave(
                 employeeId,
                 request.getFromDate(),
-                request.getToDate());
+                request.getToDate(),
+                List.of(LeaveStatus.SUBMITTED, LeaveStatus.APPROVED));
 
         if (overlap) {
-            throw new RuntimeException(
-                    "You already have a leave request for the "
-                    + "selected date range. "
+            throw new LeaveException(
+                    "You already have an active leave request overlapping the selected dates. "
                     + "Please check your leave history.");
         }
 
         // Step 6: Save leave request
         LeaveRequest leaveRequest = LeaveRequest.builder()
                 .employeeId(employeeId)
-                .employeeName(employeeName)
+                .employeeName(employeeEmail) // Assuming employeeName should now be employeeEmail
                 .leaveType(leaveType)
                 .fromDate(request.getFromDate())
                 .toDate(request.getToDate())
@@ -139,127 +151,370 @@ public class LeaveService {
 
         // Step 7: Publish RabbitMQ event
         eventPublisher.publishLeaveApplied(
-                employeeId,
-                employeeName,
-                leaveType.getTypeCode(),
-                request.getFromDate(),
-                request.getToDate(),
-                totalDays,
-                saved.getId()
-        );
+                employeeId, employeeEmail, leaveType.getTypeName(),
+                request.getFromDate(), request.getToDate(), totalDays, saved.getId());
 
         return mapToResponse(saved);
     }
 
+    // ══════════════════════════════════════════════════════════
+    // EMPLOYEE: GET LEAVE BY ID
+    // ══════════════════════════════════════════════════════════
+
+    public LeaveResponse getLeaveById(Long employeeId, Long leaveRequestId) {
+        LeaveRequest request = leaveRequestRepo.findById(leaveRequestId)
+                .orElseThrow(() -> new LeaveException(
+                        "Leave request not found with ID: " + leaveRequestId));
+
+        if (!request.getEmployeeId().equals(employeeId)) {
+            throw new LeaveException("You do not have permission to view this leave request.");
+        }
+
+        return mapToResponse(request);
+    }
 
     // ══════════════════════════════════════════════════════════
-    // 2. GET LEAVE BALANCE
+    // EMPLOYEE: GET LEAVE BALANCE
     // ══════════════════════════════════════════════════════════
 
-    public List<LeaveBalanceResponse> getLeaveBalance(
-            Long employeeId) {
-
+    public List<LeaveBalanceResponse> getLeaveBalance(Long employeeId) {
         int currentYear = LocalDate.now().getYear();
-
-        return leaveBalanceRepo
-                .findByEmployeeIdAndYear(employeeId, currentYear)
+        return leaveBalanceRepo.findByEmployeeIdAndYear(employeeId, currentYear)
                 .stream()
                 .map(this::mapToBalanceResponse)
                 .collect(Collectors.toList());
     }
 
-
     // ══════════════════════════════════════════════════════════
-    // 3. GET LEAVE HISTORY
+    // EMPLOYEE: GET LEAVE HISTORY
     // ══════════════════════════════════════════════════════════
 
     public List<LeaveResponse> getLeaveHistory(Long employeeId) {
-        return leaveRequestRepo
-                .findByEmployeeIdOrderByAppliedAtDesc(employeeId)
+        return leaveRequestRepo.findByEmployeeIdOrderByAppliedAtDesc(employeeId)
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
-
     // ══════════════════════════════════════════════════════════
-    // 4. CANCEL LEAVE
+    // EMPLOYEE: CANCEL LEAVE
     // ══════════════════════════════════════════════════════════
 
     @Transactional
     public String cancelLeave(Long employeeId, Long leaveRequestId) {
 
-        LeaveRequest request = leaveRequestRepo
-                .findById(leaveRequestId)
-                .orElseThrow(() -> new RuntimeException(
-                        "Leave request not found with ID: "
-                        + leaveRequestId));
+        LeaveRequest request = leaveRequestRepo.findById(leaveRequestId)
+                .orElseThrow(() -> new LeaveException(
+                        "Leave request not found with ID: " + leaveRequestId));
 
-        // Verify this leave belongs to this employee
         if (!request.getEmployeeId().equals(employeeId)) {
-            throw new RuntimeException(
-                    "You can only cancel your own leave requests");
-        }
-
-        // Only SUBMITTED requests can be cancelled
-        if (request.getStatus() == LeaveStatus.APPROVED) {
-            throw new RuntimeException(
-                    "Cannot cancel an already APPROVED leave. "
-                    + "Please contact your manager.");
+            throw new LeaveException("You can only cancel your own leave requests.");
         }
 
         if (request.getStatus() == LeaveStatus.CANCELLED) {
-            throw new RuntimeException(
-                    "This leave request is already cancelled");
+            throw new LeaveException("This leave request is already cancelled.");
         }
 
         if (request.getStatus() == LeaveStatus.REJECTED) {
-            throw new RuntimeException(
-                    "Cannot cancel a rejected leave request");
+            throw new LeaveException("Cannot cancel a rejected leave request.");
+        }
+
+        if (request.getStatus() == LeaveStatus.APPROVED) {
+            // Allow cancellation only if leave hasn't started yet
+            if (!request.getFromDate().isAfter(LocalDate.now())) {
+                throw new LeaveException(
+                        "Cannot cancel an APPROVED leave that has already started or is today. "
+                        + "Please contact HR.");
+            }
+            // Restore balance since it was deducted on approval
+            restoreBalance(employeeId, request);
         }
 
         request.setStatus(LeaveStatus.CANCELLED);
         leaveRequestRepo.save(request);
 
-        log.info("Leave cancelled: requestId={}, employeeId={}",
-                leaveRequestId, employeeId);
+        log.info("Leave cancelled: requestId={}, employee={}, status was={}",
+                leaveRequestId, employeeId, request.getStatus());
 
-        return "Leave request #" + leaveRequestId
-                + " cancelled successfully";
+        return "Leave request #" + leaveRequestId + " cancelled successfully.";
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // EMPLOYEE: GET ACTIVE LEAVE TYPES (for dropdown)
+    // ══════════════════════════════════════════════════════════
+
+    public List<LeaveTypeResponse> getLeaveTypes() {
+        return leaveTypeRepo.findByIsActiveTrue().stream()
+                .map(lt -> LeaveTypeResponse.builder()
+                        .id(lt.getId())
+                        .typeCode(lt.getTypeCode())
+                        .typeName(lt.getTypeName())
+                        .maxDays(lt.getMaxDays())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ADMIN / MANAGER: GET ALL SUBMITTED LEAVES
+    // ══════════════════════════════════════════════════════════
+
+    public List<LeaveResponse> getAllSubmittedLeaves() {
+        return leaveRequestRepo.findByStatus(LeaveStatus.SUBMITTED)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ADMIN / MANAGER: APPROVE LEAVE
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * Approves a submitted leave request.
+     * CRITICAL: This is where the leave balance is actually deducted.
+     * Balance check is skipped here (already done on apply), but we
+     * verify the current remaining days again as a safety net in case
+     * balances changed between application and approval.
+     */
+    @Transactional
+    public String approveLeave(Long leaveRequestId, ApproveRejectLeaveRequest req) {
+
+        LeaveRequest request = leaveRequestRepo.findById(leaveRequestId)
+                .orElseThrow(() -> new LeaveException(
+                        "Leave request not found with ID: " + leaveRequestId));
+
+        if (request.getStatus() != LeaveStatus.SUBMITTED) {
+            throw new LeaveException(
+                    "Only SUBMITTED leave requests can be approved. Current status: "
+                    + request.getStatus());
+        }
+
+        // Safety net balance check at time of approval
+        int year = request.getFromDate().getYear();
+        LeaveBalance balance = leaveBalanceRepo
+                .findByEmployeeIdAndLeaveTypeIdAndYear(
+                        request.getEmployeeId(), request.getLeaveType().getId(), year)
+                .orElseThrow(() -> new LeaveException(
+                        "Leave balance not found for employee. Cannot approve."));
+
+        if (request.getTotalDays() > balance.getRemainingDays()) {
+            throw new LeaveException(
+                    "Cannot approve: employee's current balance ("
+                    + balance.getRemainingDays() + " days) is less than the requested "
+                    + request.getTotalDays() + " days.");
+        }
+
+        // Deduct balance — this is the only place usedDays is incremented
+        balance.setUsedDays(balance.getUsedDays() + request.getTotalDays());
+        leaveBalanceRepo.save(balance);
+
+        // Update leave request status
+        request.setStatus(LeaveStatus.APPROVED);
+        request.setManagerComment(req.getComment());
+        leaveRequestRepo.save(request);
+
+        log.info("Leave approved: requestId={}, employee={}, days={}, balanceRemaining={}",
+                leaveRequestId, request.getEmployeeId(),
+                request.getTotalDays(), balance.getRemainingDays());
+
+        // Notify employee
+        eventPublisher.publishLeaveStatusUpdated(
+                request.getEmployeeName(), // is employeeEmail
+                null, // fullName not in Entity, will use email as fallback in consumer
+                "APPROVED",
+                req.getComment(),
+                request.getLeaveType().getTypeName(),
+                request.getFromDate(),
+                request.getToDate());
+
+        return "Leave request #" + leaveRequestId + " approved. "
+                + request.getTotalDays() + " days deducted from balance.";
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ADMIN / MANAGER: REJECT LEAVE
+    // ══════════════════════════════════════════════════════════
+
+    @Transactional
+    public String rejectLeave(Long leaveRequestId, ApproveRejectLeaveRequest req) {
+
+        LeaveRequest request = leaveRequestRepo.findById(leaveRequestId)
+                .orElseThrow(() -> new LeaveException(
+                        "Leave request not found with ID: " + leaveRequestId));
+
+        if (request.getStatus() != LeaveStatus.SUBMITTED) {
+            throw new LeaveException(
+                    "Only SUBMITTED leave requests can be rejected. Current status: "
+                    + request.getStatus());
+        }
+
+        // Rejection comment is mandatory so employee knows what to correct
+        if (req.getComment() == null || req.getComment().isBlank()) {
+            throw new LeaveException(
+                    "A rejection comment is required. Please explain why the leave was rejected.");
+        }
+
+        request.setStatus(LeaveStatus.REJECTED);
+        request.setManagerComment(req.getComment());
+        leaveRequestRepo.save(request);
+
+        log.info("Leave rejected: requestId={}, employee={}",
+                leaveRequestId, request.getEmployeeId());
+
+        // Notify employee
+        eventPublisher.publishLeaveStatusUpdated(
+                request.getEmployeeName(), // is employeeEmail
+                null, // fullName not in Entity, will use email as fallback in consumer
+                "REJECTED",
+                req.getComment(),
+                request.getLeaveType().getTypeName(),
+                request.getFromDate(),
+                request.getToDate());
+
+        // No balance change — balance was never deducted (leave was still pending)
+        return "Leave request #" + leaveRequestId + " rejected.";
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ADMIN: HOLIDAY MANAGEMENT
+    // ══════════════════════════════════════════════════════════
+
+    @Transactional
+    public HolidayResponse addHoliday(HolidayRequest req) {
+
+        if (holidayRepo.existsByHolidayDate(req.getHolidayDate())) {
+            throw new LeaveException(
+                    "A holiday is already registered for " + req.getHolidayDate() + ".");
+        }
+
+        Holiday holiday = Holiday.builder()
+                .holidayDate(req.getHolidayDate())
+                .holidayName(req.getHolidayName())
+                .description(req.getDescription())
+                .build();
+
+        Holiday saved = holidayRepo.save(holiday);
+        log.info("Holiday added: {} on {}", req.getHolidayName(), req.getHolidayDate());
+
+        return mapToHolidayResponse(saved);
+    }
+
+    public List<HolidayResponse> getHolidaysByYear(int year) {
+        LocalDate yearStart = LocalDate.of(year, 1, 1);
+        LocalDate yearEnd   = LocalDate.of(year, 12, 31);
+        return holidayRepo
+                .findByHolidayDateBetweenOrderByHolidayDateAsc(yearStart, yearEnd)
+                .stream()
+                .map(this::mapToHolidayResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public String deleteHoliday(Long holidayId) {
+        Holiday holiday = holidayRepo.findById(holidayId)
+                .orElseThrow(() -> new LeaveException(
+                        "Holiday not found with ID: " + holidayId));
+        holidayRepo.delete(holiday);
+        log.info("Holiday deleted: id={}, name={}", holidayId, holiday.getHolidayName());
+        return "Holiday deleted successfully.";
     }
 
 
-    // ══════════════════════════════════════════════════════════
-    // 5. GET ALL LEAVE TYPES
-    // ══════════════════════════════════════════════════════════
+    /**
+     * INITIALIZE LEAVE BALANCE FOR NEW USER
+     *
+     * Called when a USER_REGISTERED event is received from RabbitMQ.
+     * Sets up default balances for the current year:
+     *   CL: 15, SL: 12, EL: 15, COL: 10
+     */
+    @Transactional
+    public void initializeLeaveBalance(Long employeeId) {
+        int currentYear = LocalDate.now().getYear();
 
-    public List<LeaveType> getLeaveTypes() {
-        return leaveTypeRepo.findByIsActiveTrue();
+        // Check if balance already exists (idempotency)
+        boolean exists = leaveBalanceRepo.existsByEmployeeIdAndYear(employeeId, currentYear);
+        if (exists) {
+            log.warn("Leave balances already exist for employee {} in year {}. Skipping initialization.",
+                    employeeId, currentYear);
+            return;
+        }
+
+        log.info("Initializing leave balances for new employee: {}", employeeId);
+
+        // Define default quotas
+        initializeType(employeeId, "CL",  "Casual Leave",      15, currentYear);
+        initializeType(employeeId, "SL",  "Sick Leave",        12, currentYear);
+        initializeType(employeeId, "EL",  "Earned Leave",      15, currentYear);
+        initializeType(employeeId, "COL", "Compensatory Off", 10, currentYear);
     }
 
+    private void initializeType(Long empId, String code, String name, int days, int year) {
+        // Find or create LeaveType
+        LeaveType type = leaveTypeRepo.findByTypeCode(code)
+                .orElseGet(() -> {
+                    log.info("Leave type {} not found, creating it...", code);
+                    return leaveTypeRepo.save(LeaveType.builder()
+                            .typeCode(code)
+                            .typeName(name)
+                            .maxDays(days)
+                            .isActive(true)
+                            .build());
+                });
+
+        // Create Balance
+        LeaveBalance balance = LeaveBalance.builder()
+                .employeeId(empId)
+                .leaveType(type)
+                .year(year)
+                .totalDays(days)
+                .usedDays(0)
+                .build();
+
+        leaveBalanceRepo.save(balance);
+        log.debug("Created {} balance for employee {}: {} days", code, empId, days);
+    }
 
     // ══════════════════════════════════════════════════════════
     // PRIVATE HELPERS
     // ══════════════════════════════════════════════════════════
 
     /**
-     * Calculates working days between two dates (Mon-Fri only).
-     * Excludes weekends — does NOT exclude holidays
-     * (holiday handling would require a holiday calendar).
+     * Calculates working days between two dates (inclusive).
+     * Excludes: Saturdays, Sundays, and any dates in the holidays list.
      */
-    private int calculateWorkingDays(LocalDate from, LocalDate to) {
+    private int calculateWorkingDays(LocalDate from, LocalDate to,
+                                      List<LocalDate> holidays) {
+        Set<LocalDate> holidaySet = Set.copyOf(holidays); // O(1) lookup
         int workingDays = 0;
         LocalDate current = from;
 
         while (!current.isAfter(to)) {
             DayOfWeek day = current.getDayOfWeek();
             if (day != DayOfWeek.SATURDAY
-                    && day != DayOfWeek.SUNDAY) {
+                    && day != DayOfWeek.SUNDAY
+                    && !holidaySet.contains(current)) {
                 workingDays++;
             }
             current = current.plusDays(1);
         }
         return workingDays;
+    }
+
+    /**
+     * Restores leave balance when an APPROVED leave is cancelled before it starts.
+     */
+    private void restoreBalance(Long employeeId, LeaveRequest request) {
+        int year = request.getFromDate().getYear();
+        leaveBalanceRepo
+                .findByEmployeeIdAndLeaveTypeIdAndYear(
+                        employeeId, request.getLeaveType().getId(), year)
+                .ifPresent(balance -> {
+                    int restored = Math.max(0, balance.getUsedDays() - request.getTotalDays());
+                    balance.setUsedDays(restored);
+                    leaveBalanceRepo.save(balance);
+                    log.info("Balance restored: employee={}, days={}, newUsed={}",
+                            employeeId, request.getTotalDays(), restored);
+                });
     }
 
     private LeaveResponse mapToResponse(LeaveRequest r) {
@@ -277,8 +532,7 @@ public class LeaveService {
                 .build();
     }
 
-    private LeaveBalanceResponse mapToBalanceResponse(
-            LeaveBalance b) {
+    private LeaveBalanceResponse mapToBalanceResponse(LeaveBalance b) {
         return LeaveBalanceResponse.builder()
                 .leaveTypeId(b.getLeaveType().getId())
                 .leaveTypeCode(b.getLeaveType().getTypeCode())
@@ -287,6 +541,15 @@ public class LeaveService {
                 .usedDays(b.getUsedDays())
                 .remainingDays(b.getRemainingDays())
                 .year(b.getYear())
+                .build();
+    }
+
+    private HolidayResponse mapToHolidayResponse(Holiday h) {
+        return HolidayResponse.builder()
+                .id(h.getId())
+                .holidayDate(h.getHolidayDate())
+                .holidayName(h.getHolidayName())
+                .description(h.getDescription())
                 .build();
     }
 }

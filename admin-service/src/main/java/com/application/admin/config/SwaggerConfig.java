@@ -19,9 +19,9 @@ public class SwaggerConfig {
         return new OpenAPI()
         		.servers(List.of(new Server().url("http://localhost:8080")))
                 .info(new Info()
-                        .title("Admin Service")
-                        .version("1.0")
-                        .description("Admin Service"))
+                		.title("Admin Service")
+                		.version("1.0")
+                		.description("Provides administrative functionalities such as managing users, roles, permissions, and overseeing system-wide operations."))
 
                 // 🔐 JWT Configuration
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))

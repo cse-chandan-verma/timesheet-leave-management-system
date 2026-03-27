@@ -1,15 +1,16 @@
-
 server:
   port: 8081
 
 spring:
   application:
     name: auth-service
+  config:
+    import: optional:file:../.env[.properties]
 
   datasource:
-    url: jdbc:mysql://localhost:3306/tms_auth_db?createDatabaseIfNotExist=true
-    username: root
-    password: ch@nd@n_V03
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/tms_auth_db?createDatabaseIfNotExist=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -23,9 +24,11 @@ spring:
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
-    port: 5672
-    username: guest
-    password: guest
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    template:
+      exchange: tms.exchange
 
 eureka:
   instance:
@@ -40,7 +43,7 @@ eureka:
     fetch-registry: true
 
 jwt:
-  secret: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
+  secret: ${JWT_SECRET}
   expiration: 86400000   
 
 springdoc:
@@ -50,6 +53,12 @@ springdoc:
     path: /swagger-ui.html
 
 management:
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans
   endpoints:
     web:
       exposure:

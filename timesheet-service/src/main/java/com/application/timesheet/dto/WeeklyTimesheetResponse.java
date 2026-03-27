@@ -14,6 +14,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class WeeklyTimesheetResponse {
 	private Long timesheetId;
+	private Long employeeId;
+	private String employeeName;
 	private LocalDate weekStartDate;
 	private String status;
 	private Double totalHours;

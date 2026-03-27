@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -34,10 +35,7 @@ public class AuthService {
     @Value("${jwt.expiration}")
     private long jwtExpiration;
 
-
-    // ══════════════════════════════════════════════════════════
     // 1. REGISTER — Always EMPLOYEE, no role choice
-    // ══════════════════════════════════════════════════════════
 
     @Transactional
     public String register(RegisterRequest request) {
@@ -81,10 +79,7 @@ public class AuthService {
                 + savedUser.getFullName() + "!";
     }
 
-
-    // ══════════════════════════════════════════════════════════
     // 2. LOGIN
-    // ══════════════════════════════════════════════════════════
 
     public AuthResponse login(LoginRequest request) {
 
@@ -123,16 +118,8 @@ public class AuthService {
                 .build();
     }
 
-
-    // ══════════════════════════════════════════════════════════
     // 3. GET PROFILE — Any logged-in user
-    // ══════════════════════════════════════════════════════════
 
-    /**
-     * Returns the profile of the currently logged-in user.
-     * The email is extracted from the JWT token by the Gateway
-     * and passed as X-User-Email header.
-     */
     public UserProfileResponse getProfile(String email) {
 
         User user = userRepository.findByEmail(email)
@@ -142,24 +129,8 @@ public class AuthService {
         return mapToProfileResponse(user);
     }
 
-
-    // ══════════════════════════════════════════════════════════
     // 4. UPDATE PROFILE — Any logged-in user (own profile only)
-    // ══════════════════════════════════════════════════════════
 
-    /**
-     * Allows a user to update their own profile.
-     *
-     * What CAN be updated:
-     *   - fullName
-     *   - password (requires current password verification)
-     *
-     * What CANNOT be updated:
-     *   - email (login identifier — immutable)
-     *   - employeeCode (assigned by HR — immutable)
-     *   - role (only ADMIN can change this)
-     *   - isActive (only ADMIN can change this)
-     */
     @Transactional
     public UserProfileResponse updateProfile(String email,
                                               UpdateProfileRequest request) {
@@ -210,26 +181,35 @@ public class AuthService {
         }
 
         User updated = userRepository.save(user);
+        
+        // Notify about profile/password update
+        if (request.getNewPassword() != null && !request.getNewPassword().isBlank()) {
+            publishPasswordChangedEvent(updated);
+        } else {
+            publishProfileUpdatedEvent(updated);
+        }
+
         return mapToProfileResponse(updated);
     }
 
+    public List<UserResponseDto> getAllUsers() {
+        return userRepository.findAll()
+                .stream()
+                .map(this::mapToDto)
+                .toList();
+    }
 
-    // ══════════════════════════════════════════════════════════
+    private UserResponseDto mapToDto(User user) {
+        return UserResponseDto.builder()
+                .id(user.getId())
+                .name(user.getFullName())
+                .email(user.getEmail())
+                .role(user.getRole().name())
+                .build();
+    }
     // 5. PROMOTE ROLE — ADMIN ONLY
-    // ══════════════════════════════════════════════════════════
 
-    /**
-     * Promotes a user's role to MANAGER or ADMIN.
-     *
-     * This endpoint is secured with @PreAuthorize("hasRole('ADMIN')")
-     * in the controller — only ADMIN tokens can call it.
-     *
-     * Real world flow:
-     *   HR/Admin opens the system
-     *   Searches for the employee by email
-     *   Promotes them to MANAGER or ADMIN
-     *   Employee logs out and back in to get new role token
-     */
+    
     @Transactional
     public String promoteRole(PromoteRoleRequest request) {
 
@@ -257,6 +237,9 @@ public class AuthService {
         log.info("Role promoted: {} changed from {} to {} ",
                 user.getEmail(), oldRole, newRole);
 
+        // Notify employee
+        publishRoleUpdatedEvent(user, oldRole, newRole);
+
         return "Role updated successfully. "
                 + user.getFullName()
                 + " is now " + newRole + ". "
@@ -264,10 +247,29 @@ public class AuthService {
                 + "for the new role to take effect.";
     }
 
+    private void publishRoleUpdatedEvent(User user, User.Role oldRole, User.Role newRole) {
+        try {
+            Map<String, Object> event = new HashMap<>();
+            event.put("eventType", "USER_ROLE_UPDATED");
+            event.put("userId",    user.getId());
+            event.put("email",     user.getEmail());
+            event.put("fullName",  user.getFullName());
+            event.put("oldRole",   oldRole.name());
+            event.put("newRole",   newRole.name());
+            event.put("timestamp", LocalDateTime.now().toString());
 
-    // ══════════════════════════════════════════════════════════
+            rabbitTemplate.convertAndSend(
+                    "tms.exchange",
+                    "user.role.updated",
+                    event);
+            log.info("Published USER_ROLE_UPDATED event for: {}", user.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to publish USER_ROLE_UPDATED event: {}", e.getMessage());
+        }
+    }
+
+
     // PRIVATE HELPERS
-    // ══════════════════════════════════════════════════════════
 
     private UserProfileResponse mapToProfileResponse(User user) {
         return UserProfileResponse.builder()
@@ -300,7 +302,10 @@ public class AuthService {
 
         user.setPassword(passwordEncoder.encode(
                 request.getNewPassword()));
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+        
+        // Send notification for password reset
+        publishPasswordChangedEvent(savedUser);
     }
 
     private void publishUserRegisteredEvent(User user) {
@@ -309,6 +314,7 @@ public class AuthService {
             event.put("eventType",    "USER_REGISTERED");
             event.put("userId",       user.getId());
             event.put("email",        user.getEmail());
+            event.put("fullName",     user.getFullName());
             event.put("employeeCode", user.getEmployeeCode());
             event.put("role",         user.getRole().name());
             event.put("timestamp",
@@ -322,6 +328,43 @@ public class AuthService {
         } catch (Exception e) {
             log.error("Failed to publish USER_REGISTERED event: {}",
                     e.getMessage());
+        }
+    }
+
+    private void publishProfileUpdatedEvent(User user) {
+        try {
+            Map<String, Object> event = new HashMap<>();
+            event.put("eventType",    "USER_PROFILE_UPDATED");
+            event.put("userId",       user.getId());
+            event.put("email",        user.getEmail());
+            event.put("fullName",     user.getFullName());
+            event.put("timestamp",    LocalDateTime.now().toString());
+
+            rabbitTemplate.convertAndSend(
+                    "tms.exchange",
+                    "user.profile.updated",
+                    event);
+            log.info("Published USER_PROFILE_UPDATED event for: {}", user.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to publish USER_PROFILE_UPDATED event: {}", e.getMessage());
+        }
+    }
+
+    private void publishPasswordChangedEvent(User user) {
+        try {
+            Map<String, Object> event = new HashMap<>();
+            event.put("eventType",    "USER_PASSWORD_CHANGED");
+            event.put("userId",       user.getId());
+            event.put("email",        user.getEmail());
+            event.put("timestamp",    LocalDateTime.now().toString());
+
+            rabbitTemplate.convertAndSend(
+                    "tms.exchange",
+                    "user.password.changed",
+                    event);
+            log.info("Published USER_PASSWORD_CHANGED event for: {}", user.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to publish USER_PASSWORD_CHANGED event: {}", e.getMessage());
         }
     }
 }

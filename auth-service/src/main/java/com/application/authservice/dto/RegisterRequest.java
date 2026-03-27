@@ -1,6 +1,5 @@
 package com.application.authservice.dto;
 
-import com.application.authservice.model.User.Role;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

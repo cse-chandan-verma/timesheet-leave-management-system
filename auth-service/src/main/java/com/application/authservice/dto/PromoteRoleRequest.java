@@ -3,18 +3,7 @@ package com.application.authservice.dto;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
-/**
- * PROMOTE ROLE REQUEST DTO
- *
- * ADMIN-ONLY endpoint uses this to promote a user's role.
- *
- * Only ADMIN can call /auth/admin/promote.
- * @PreAuthorize("hasRole('ADMIN')") enforces this.
- *
- * Example use cases:
- *   - HR promotes an employee to MANAGER
- *   - Super admin creates another ADMIN
- */
+
 @Data
 public class PromoteRoleRequest {
 
@@ -29,5 +18,5 @@ public class PromoteRoleRequest {
         message = "Role must be EMPLOYEE, MANAGER or ADMIN"
     )
     private String role;
-    // The new role to assign
+
 }

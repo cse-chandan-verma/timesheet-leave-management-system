@@ -19,9 +19,9 @@ public class SwaggerConfig {
         return new OpenAPI()
         		.servers(List.of(new Server().url("http://localhost:8080")))
                 .info(new Info()
-                        .title("Leave Service")
-                        .version("1.0")
-                        .description("Leave Service"))
+                		.title("Leave Service")
+                		.version("1.0")
+                		.description("Handles employee leave requests, approvals, leave balance tracking, and leave history management."))
 
                 // 🔐 JWT Configuration
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))

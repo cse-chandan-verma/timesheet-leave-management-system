@@ -7,6 +7,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -141,6 +144,13 @@ public class AuthController {
         authService.forgotPassword(request);
         return ResponseEntity.ok(
             "Password updated successfully!");
+    }
+    @GetMapping("/users")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @Operation(summary = "Get all users (Admin/Manager only)",
+    				description = "Only Admin and Manager have the access to see all the users")
+    public ResponseEntity<List<UserResponseDto>> getAllUsers() {
+        return ResponseEntity.ok(authService.getAllUsers());
     }
 
     /**

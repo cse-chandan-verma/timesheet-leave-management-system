@@ -2,9 +2,9 @@ package com.application.admin.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import com.application.admin.dto.ApiResponseDTO;
@@ -14,152 +14,127 @@ import com.application.admin.dto.TimesheetResponseDTO;
 import com.application.admin.entity.AdminNotification;
 import com.application.admin.service.AdminService;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
+/**
+ * Aggregator controller for admin tasks.
+ * Coordinates between management functions across multiple services.
+ */
 @RestController
 @RequestMapping("/admin")
-@Tag(name = "Admin & Approval", description = "Timesheet and Leave approval APIs")
+@RequiredArgsConstructor
+@Tag(name = "Admin & Approval Aggregator", description = "Unified management portal for timesheets and leaves")
 public class AdminController {
 
     private final AdminService adminService;
 
-    public AdminController(AdminService adminService) {
-        this.adminService = adminService;
-    }
-
-    // ── Helper to extract role from Authentication ────────────────────────
-
-    private String extractRole(Authentication auth) {
-        return auth.getAuthorities().stream()
-                .findFirst()
-                .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .orElse("UNKNOWN");
-    }
-
-    // ── Timesheet Approval ────────────────────────────────────────────────
+    // ── Timesheet Approval ─────────────────────────────────────────────
 
     @GetMapping("/timesheets/pending")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Get all pending timesheets")
-    public ResponseEntity<ApiResponseDTO<List<TimesheetResponseDTO>>> getPendingTimesheets(
-            Authentication auth) {
+    @Operation(summary = "Get all pending timesheets across departments")
+    public ResponseEntity<ApiResponseDTO<List<TimesheetResponseDTO>>> getPendingTimesheets() {
 
-        List<TimesheetResponseDTO> list =
-                adminService.getPendingTimesheets(
-                        auth.getName(), extractRole(auth));
-
+        List<TimesheetResponseDTO> result = adminService.getPendingTimesheets();
         return ResponseEntity.ok(
-                new ApiResponseDTO<>("Pending timesheets fetched.", list));
+                new ApiResponseDTO<>("Pending timesheets fetched.", result));
     }
 
     @PutMapping("/timesheets/{id}/approve")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Approve a timesheet")
-    public ResponseEntity<ApiResponseDTO<TimesheetResponseDTO>> approveTimesheet(
+    @Operation(summary = "Approve a timesheet via proxy")
+    public ResponseEntity<ApiResponseDTO<String>> approveTimesheet(
             @PathVariable Long id,
-            Authentication auth) {
+            @RequestBody(required = false) ApprovalRequestDTO request) {
 
-        TimesheetResponseDTO result =
-                adminService.approveTimesheet(
-                        id, auth.getName(), extractRole(auth));
+        String comment = (request != null) ? request.getComment() : null;
+        String message = adminService.approveTimesheet(id, comment);
 
         return ResponseEntity.ok(
-                new ApiResponseDTO<>("Timesheet approved successfully.", result));
+                new ApiResponseDTO<>(message, null));
     }
 
     @PutMapping("/timesheets/{id}/reject")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Reject a timesheet")
-    public ResponseEntity<ApiResponseDTO<TimesheetResponseDTO>> rejectTimesheet(
+    @Operation(summary = "Reject a timesheet via proxy")
+    public ResponseEntity<ApiResponseDTO<String>> rejectTimesheet(
             @PathVariable Long id,
-            @RequestBody ApprovalRequestDTO request,
-            Authentication auth) {
+            @Valid @RequestBody ApprovalRequestDTO request) {
 
-        TimesheetResponseDTO result =
-                adminService.rejectTimesheet(
-                        id, request.getRemarks(),
-                        auth.getName(), extractRole(auth));
+        String message = adminService.rejectTimesheet(id, request.getComment());
 
         return ResponseEntity.ok(
-                new ApiResponseDTO<>("Timesheet rejected.", result));
+                new ApiResponseDTO<>(message, null));
     }
 
-    // ── Leave Approval ────────────────────────────────────────────────────
+    // ── Leave Approval ────────────────────────────────────────────────
 
     @GetMapping("/leaves/pending")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Get all pending leave requests")
-    public ResponseEntity<ApiResponseDTO<List<LeaveResponseDTO>>> getPendingLeaves(
-            Authentication auth) {
+    @Operation(summary = "Get all pending leave requests across departments")
+    public ResponseEntity<ApiResponseDTO<List<LeaveResponseDTO>>> getPendingLeaves() {
 
-        List<LeaveResponseDTO> list =
-                adminService.getPendingLeaveRequests(
-                        auth.getName(), extractRole(auth));
-
+        List<LeaveResponseDTO> result = adminService.getPendingLeaveRequests();
         return ResponseEntity.ok(
-                new ApiResponseDTO<>("Pending leave requests fetched.", list));
+                new ApiResponseDTO<>("Pending leave requests fetched.", result));
     }
 
     @PutMapping("/leaves/{id}/approve")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Approve a leave request")
-    public ResponseEntity<ApiResponseDTO<LeaveResponseDTO>> approveLeave(
+    @Operation(summary = "Approve a leave request via proxy")
+    public ResponseEntity<ApiResponseDTO<String>> approveLeave(
             @PathVariable Long id,
-            Authentication auth) {
+            @RequestBody(required = false) ApprovalRequestDTO request) {
 
-        LeaveResponseDTO result =
-                adminService.approveLeave(
-                        id, auth.getName(), extractRole(auth));
+        String comment = (request != null) ? request.getComment() : null;
+        String message = adminService.approveLeave(id, comment);
 
         return ResponseEntity.ok(
-                new ApiResponseDTO<>("Leave approved successfully.", result));
+                new ApiResponseDTO<>(message, null));
     }
 
     @PutMapping("/leaves/{id}/reject")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Reject a leave request")
-    public ResponseEntity<ApiResponseDTO<LeaveResponseDTO>> rejectLeave(
+    @Operation(summary = "Reject a leave request via proxy")
+    public ResponseEntity<ApiResponseDTO<String>> rejectLeave(
             @PathVariable Long id,
-            @RequestBody ApprovalRequestDTO request,
-            Authentication auth) {
+            @Valid @RequestBody ApprovalRequestDTO request) {
 
-        LeaveResponseDTO result =
-                adminService.rejectLeave(
-                        id, request.getRemarks(),
-                        auth.getName(), extractRole(auth));
+        String message = adminService.rejectLeave(id, request.getComment());
 
         return ResponseEntity.ok(
-                new ApiResponseDTO<>("Leave rejected.", result));
+                new ApiResponseDTO<>(message, null));
     }
 
-    // ── Notifications ─────────────────────────────────────────────────────
+    // ── Notifications ──────────────────────────────────────────────────
 
     @GetMapping("/notifications")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Get all admin notifications")
+    @Operation(summary = "Get all audit notifications")
     public ResponseEntity<ApiResponseDTO<List<AdminNotification>>> getAllNotifications() {
         return ResponseEntity.ok(
-                new ApiResponseDTO<>("Notifications fetched.",
+                new ApiResponseDTO<>("Audit logs fetched.",
                         adminService.getAllNotifications()));
     }
 
     @GetMapping("/notifications/type/{type}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Get notifications by type (TIMESHEET or LEAVE)")
+    @Operation(summary = "Filter notifications by type")
     public ResponseEntity<ApiResponseDTO<List<AdminNotification>>> getByType(
             @PathVariable String type) {
         return ResponseEntity.ok(
-                new ApiResponseDTO<>("Notifications fetched.",
+                new ApiResponseDTO<>("Filtered logs fetched.",
                         adminService.getNotificationsByType(type)));
     }
 
     @GetMapping("/notifications/user/{email}")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Get notifications for a specific user")
+    @Operation(summary = "Filter notifications by employee email")
     public ResponseEntity<ApiResponseDTO<List<AdminNotification>>> getByUser(
             @PathVariable String email) {
         return ResponseEntity.ok(
-                new ApiResponseDTO<>("Notifications fetched.",
+                new ApiResponseDTO<>("User-specific logs fetched.",
                         adminService.getNotificationsByUser(email)));
     }
 }

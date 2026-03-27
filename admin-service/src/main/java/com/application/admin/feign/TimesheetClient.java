@@ -4,30 +4,31 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 
+import com.application.admin.dto.ApprovalRequestDTO;
 import com.application.admin.dto.TimesheetResponseDTO;
 
 import java.util.List;
 
-@FeignClient(name = "timesheet-service", url = "http://localhost:8082")
+/**
+ * Feign client to communicate with timesheet-service.
+ * Service name and endpoints are aligned with the new refactored architecture.
+ * Hardcoded URL removed for automatic Eureka discovery in Docker.
+ */
+@FeignClient(name = "timesheet-service")
 public interface TimesheetClient {
 
-    @GetMapping("/timesheet/pending")
-    List<TimesheetResponseDTO> getPendingTimesheets(
-            @RequestParam("email") String email,
-            @RequestParam("role") String role);
+    @GetMapping("/timesheet/admin/submitted")
+    List<TimesheetResponseDTO> getPendingTimesheets();
 
-    @PutMapping("/timesheet/{id}/approve")
-    TimesheetResponseDTO approveTimesheet(
-            @PathVariable("id") Long id,
-            @RequestParam("email") String email,
-            @RequestParam("role") String role);
+    @PutMapping("/timesheet/admin/approve/{timesheetId}")
+    String approveTimesheet(
+            @PathVariable("timesheetId") Long timesheetId,
+            @RequestBody ApprovalRequestDTO request);
 
-    @PutMapping("/timesheet/{id}/reject")
-    TimesheetResponseDTO rejectTimesheet(
-            @PathVariable("id") Long id,
-            @RequestParam("remarks") String remarks,
-            @RequestParam("email") String email,
-            @RequestParam("role") String role);
+    @PutMapping("/timesheet/admin/reject/{timesheetId}")
+    String rejectTimesheet(
+            @PathVariable("timesheetId") Long timesheetId,
+            @RequestBody ApprovalRequestDTO request);
 }

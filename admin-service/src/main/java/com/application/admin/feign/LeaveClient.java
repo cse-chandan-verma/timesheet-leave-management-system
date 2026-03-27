@@ -1,32 +1,33 @@
 package com.application.admin.feign;
+
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 
+import com.application.admin.dto.ApprovalRequestDTO;
 import com.application.admin.dto.LeaveResponseDTO;
 
 import java.util.List;
 
-@FeignClient(name = "leave-service", url = "http://localhost:8083")
+/**
+ * Feign client to communicate with leave-service.
+ * Service name and endpoints are aligned with the new refactored architecture.
+ */
+@FeignClient(name = "leave-service")
 public interface LeaveClient {
 
-    @GetMapping("/leave/pending")
-    List<LeaveResponseDTO> getPendingLeaveRequests(
-            @RequestParam("email") String email,
-            @RequestParam("role") String role);
+    @GetMapping("/leave/admin/pending")
+    List<LeaveResponseDTO> getPendingLeaveRequests();
 
-    @PutMapping("/leave/{id}/approve")
-    LeaveResponseDTO approveLeave(
+    @PutMapping("/leave/admin/approve/{id}")
+    String approveLeave(
             @PathVariable("id") Long id,
-            @RequestParam("email") String email,
-            @RequestParam("role") String role);
+            @RequestBody ApprovalRequestDTO request);
 
-    @PutMapping("/leave/{id}/reject")
-    LeaveResponseDTO rejectLeave(
+    @PutMapping("/leave/admin/reject/{id}")
+    String rejectLeave(
             @PathVariable("id") Long id,
-            @RequestParam("remarks") String remarks,
-            @RequestParam("email") String email,
-            @RequestParam("role") String role);
+            @RequestBody ApprovalRequestDTO request);
 }

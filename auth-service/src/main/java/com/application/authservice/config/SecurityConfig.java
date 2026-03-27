@@ -43,17 +43,18 @@ public class SecurityConfig {
                 // ── Public endpoints — no token needed ──────────
                 .requestMatchers(
                     "/auth/login",
-                    "/auth/register"
+                    "/auth/register",
+                    "/auth/forgot-password"
                     // NOTE: /auth/admin/promote is NOT here
                     // It requires ADMIN role — enforced by @PreAuthorize
                 ).permitAll()
 
                 // ── Swagger UI — public for development ─────────
                 .requestMatchers(
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
                     "/v3/api-docs/**",
                     "/v3/api-docs",
+                    "/swagger-ui.html",
+                    "/swagger-ui/**",
                     "/auth/v3/api-docs/**",
                     "/auth/v3/api-docs",
                     "/webjars/**"

@@ -19,4 +19,6 @@ public interface LeaveBalanceRepository
     // Get all balances for an employee in a year
     List<LeaveBalance> findByEmployeeIdAndYear(
             Long employeeId, Integer year);
+
+    boolean existsByEmployeeIdAndYear(Long employeeId, Integer year);
 }

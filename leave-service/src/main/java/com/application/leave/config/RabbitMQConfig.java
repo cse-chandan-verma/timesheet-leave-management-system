@@ -14,7 +14,9 @@ public class RabbitMQConfig {
 
     public static final String EXCHANGE_NAME             = "tms.exchange";
     public static final String LEAVE_APPLIED_QUEUE       = "leave.applied.queue";
+    public static final String USER_REGISTERED_QUEUE    = "user.registered.leave.queue";
     public static final String LEAVE_APPLIED_ROUTING_KEY = "leave.applied";
+    public static final String USER_REGISTERED_ROUTING_KEY = "user.registered";
 
     @Bean
     public TopicExchange tmsExchange() {
@@ -27,11 +29,24 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue userRegisteredQueue() {
+        return new Queue(USER_REGISTERED_QUEUE, true);
+    }
+
+    @Bean
     public Binding leaveBinding(Queue leaveAppliedQueue,
                                  TopicExchange tmsExchange) {
         return BindingBuilder.bind(leaveAppliedQueue)
                 .to(tmsExchange)
                 .with(LEAVE_APPLIED_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding userRegisteredBinding(Queue userRegisteredQueue,
+                                         TopicExchange tmsExchange) {
+        return BindingBuilder.bind(userRegisteredQueue)
+                .to(tmsExchange)
+                .with(USER_REGISTERED_ROUTING_KEY);
     }
 
     @Bean

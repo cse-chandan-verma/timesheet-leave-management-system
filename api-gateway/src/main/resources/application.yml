@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: api-gateway
+  config:
+    import: optional:file:../.env[.properties]
 
   cloud:
     gateway:
@@ -28,18 +30,23 @@ spring:
            predicates:
             - Path=/admin/**
 
+         - id: notification-service
+           uri: lb://notification-service
+           predicates:
+             - Path=/notification/**
+
 eureka:
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka}
     register-with-eureka: true
     fetch-registry: true
 
 jwt:
- secret: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
+ secret: ${JWT_SECRET}
 
 logging:
   level:
@@ -47,6 +54,12 @@ logging:
     reactor.netty: WARN
 
 management:
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans
   endpoints:
     web:
       exposure:

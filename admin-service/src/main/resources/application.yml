@@ -4,11 +4,13 @@ server:
 spring:
   application:
     name: admin-service
+  config:
+    import: optional:file:../.env[.properties]
 
   datasource:
-    url: jdbc:mysql://localhost:3306/tms_admin_db?createDatabaseIfNotExist=true
-    username: root
-    password: ch@nd@n_V03
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/tms_admin_db?createDatabaseIfNotExist=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -20,19 +22,22 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
 
   rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    template:
+      exchange: tms.exchange
 
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
   instance:
     prefer-ip-address: true
+
 jwt:
-  secret: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
+  secret: ${JWT_SECRET}
 
 springdoc:
   api-docs:
@@ -41,5 +46,15 @@ springdoc:
     path: /swagger-ui.html
 
 logging:
+  level:
+    com.application.adminservice: DEBUG
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans
   level:
     com.application.adminservice: DEBUG

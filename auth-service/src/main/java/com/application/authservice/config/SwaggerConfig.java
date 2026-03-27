@@ -19,9 +19,9 @@ public class SwaggerConfig {
         return new OpenAPI()
         		.servers(List.of(new Server().url("http://localhost:8080")))
                 .info(new Info()
-                        .title("Auth Service API")
-                        .version("1.0")
-                        .description("Authentication Service APIs"))
+                		.title("Auth Service")
+                		.version("1.0")
+                		.description("Handles user authentication and authorization, including login, registration, JWT token generation, and role-based access control."))
 
                 // 🔐 JWT Configuration
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))

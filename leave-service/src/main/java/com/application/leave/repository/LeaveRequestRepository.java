@@ -15,24 +15,32 @@ import java.util.List;
 public interface LeaveRequestRepository
         extends JpaRepository<LeaveRequest, Long> {
 
-    // All leave requests for an employee
-    List<LeaveRequest> findByEmployeeIdOrderByAppliedAtDesc(
-            Long employeeId);
+    // All leave requests for an employee, newest first
+    List<LeaveRequest> findByEmployeeIdOrderByAppliedAtDesc(Long employeeId);
 
-    // All pending requests (for manager approval queue)
+    // All requests of a given status (used for manager approval queue)
     List<LeaveRequest> findByStatus(LeaveStatus status);
 
+    // Employee's requests filtered by status
+    List<LeaveRequest> findByEmployeeIdAndStatus(Long employeeId, LeaveStatus status);
+
+    /**
+     * Checks whether the employee already has an ACTIVE (SUBMITTED or APPROVED)
+     * leave that overlaps with the requested date range.
+     *
+     * FIX: Statuses passed as a @Param list — NOT as string literals inside the
+     * JPQL string. String literals like 'SUBMITTED' are non-standard JPQL for
+     * enum fields and are unreliable across JPA providers. Passing them as
+     * typed parameters is the correct and safe approach.
+     */
     @Query("SELECT COUNT(l) > 0 FROM LeaveRequest l " +
            "WHERE l.employeeId = :employeeId " +
-           "AND l.status IN ('SUBMITTED', 'APPROVED') " +
+           "AND l.status IN :statuses " +
            "AND l.fromDate <= :toDate " +
            "AND l.toDate >= :fromDate")
     boolean existsOverlappingLeave(
             @Param("employeeId") Long employeeId,
             @Param("fromDate")   LocalDate fromDate,
-            @Param("toDate")     LocalDate toDate);
-
-    // Employee's requests by status
-    List<LeaveRequest> findByEmployeeIdAndStatus(
-            Long employeeId, LeaveStatus status);
+            @Param("toDate")     LocalDate toDate,
+            @Param("statuses")   List<LeaveStatus> statuses);
 }

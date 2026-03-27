@@ -16,7 +16,7 @@ public class TimesheetEntryRequest {
 
 	@NotNull(message = "Hours worked is required")
 	@DecimalMin(value = "0.5", message = "Minimum 0.5 hours per entry")
-	@DecimalMax(value = "24.0", message = "Cannot exceed 24 hours per day")
+	@DecimalMax(value = "12.0", message = "Cannot exceed 12 hours per entry")
 	private BigDecimal hoursWorked;
 
 	@Size(max = 500, message = "Task summary cannot exceed 500 characters")

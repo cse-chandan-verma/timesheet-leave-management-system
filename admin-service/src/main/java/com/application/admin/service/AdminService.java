@@ -1,74 +1,77 @@
 package com.application.admin.service;
 
+import java.util.List;
 import org.springframework.stereotype.Service;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+import com.application.admin.dto.ApprovalRequestDTO;
 import com.application.admin.dto.LeaveResponseDTO;
 import com.application.admin.dto.TimesheetResponseDTO;
 import com.application.admin.entity.AdminNotification;
+import com.application.admin.exception.AdminException;
 import com.application.admin.feign.LeaveClient;
 import com.application.admin.feign.TimesheetClient;
 import com.application.admin.repository.AdminNotificationRepository;
 
-import java.util.List;
-
+/**
+ * Service to aggregate administrative tasks.
+ * Actively communicates with timesheet and leave microservices via Feign clients.
+ */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class AdminService {
 
     private final TimesheetClient timesheetClient;
-    private final LeaveClient leaveClient;
+    private final LeaveClient     leaveClient;
     private final AdminNotificationRepository notificationRepository;
 
-    public AdminService(TimesheetClient timesheetClient,
-                        LeaveClient leaveClient,
-                        AdminNotificationRepository notificationRepository) {
-        this.timesheetClient       = timesheetClient;
-        this.leaveClient           = leaveClient;
-        this.notificationRepository = notificationRepository;
+    // ── Timesheet Operations ─────────────────────────────────────────────
+
+    public List<TimesheetResponseDTO> getPendingTimesheets() {
+        log.info("Fetching pending timesheets from timesheet-service...");
+        return timesheetClient.getPendingTimesheets();
     }
 
-    // ── Timesheet operations ──────────────────────────────────────────────
-
-    public List<TimesheetResponseDTO> getPendingTimesheets(
-            String email, String role) {
-        return timesheetClient.getPendingTimesheets(email, role);
+    public String approveTimesheet(Long timesheetId, String comment) {
+        log.info("Approving timesheet: {}", timesheetId);
+        ApprovalRequestDTO request = new ApprovalRequestDTO(comment);
+        return timesheetClient.approveTimesheet(timesheetId, request);
     }
 
-    public TimesheetResponseDTO approveTimesheet(
-            Long id, String email, String role) {
-        return timesheetClient.approveTimesheet(id, email, role);
-    }
-
-    public TimesheetResponseDTO rejectTimesheet(
-            Long id, String remarks, String email, String role) {
-        if (remarks == null || remarks.isBlank()) {
-            throw new RuntimeException(
-                    "Remarks are mandatory when rejecting a timesheet.");
+    public String rejectTimesheet(Long timesheetId, String comment) {
+        log.info("Rejecting timesheet: {}", timesheetId);
+        if (comment == null || comment.isBlank()) {
+            throw new AdminException("Rejection comment is mandatory.");
         }
-        return timesheetClient.rejectTimesheet(id, remarks, email, role);
+        ApprovalRequestDTO request = new ApprovalRequestDTO(comment);
+        return timesheetClient.rejectTimesheet(timesheetId, request);
     }
 
-    // ── Leave operations ──────────────────────────────────────────────────
+    // ── Leave Operations ────────────────────────────────────────────────
 
-    public List<LeaveResponseDTO> getPendingLeaveRequests(
-            String email, String role) {
-        return leaveClient.getPendingLeaveRequests(email, role);
+    public List<LeaveResponseDTO> getPendingLeaveRequests() {
+        log.info("Fetching pending leave requests from leave-service...");
+        return leaveClient.getPendingLeaveRequests();
     }
 
-    public LeaveResponseDTO approveLeave(
-            Long id, String email, String role) {
-        return leaveClient.approveLeave(id, email, role);
+    public String approveLeave(Long leaveId, String comment) {
+        log.info("Approving leave request: {}", leaveId);
+        ApprovalRequestDTO request = new ApprovalRequestDTO(comment);
+        return leaveClient.approveLeave(leaveId, request);
     }
 
-    public LeaveResponseDTO rejectLeave(
-            Long id, String remarks, String email, String role) {
-        if (remarks == null || remarks.isBlank()) {
-            throw new RuntimeException(
-                    "Remarks are mandatory when rejecting a leave request.");
+    public String rejectLeave(Long leaveId, String comment) {
+        log.info("Rejecting leave request: {}", leaveId);
+        if (comment == null || comment.isBlank()) {
+            throw new AdminException("Rejection comment is mandatory.");
         }
-        return leaveClient.rejectLeave(id, remarks, email, role);
+        ApprovalRequestDTO request = new ApprovalRequestDTO(comment);
+        return leaveClient.rejectLeave(leaveId, request);
     }
 
-    // ── Notification operations ───────────────────────────────────────────
+    // ── Notification Operations ──────────────────────────────────────────
 
     public List<AdminNotification> getAllNotifications() {
         return notificationRepository.findAll();

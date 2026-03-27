@@ -19,9 +19,9 @@ public class SwaggerConfig {
         return new OpenAPI()
         		.servers(List.of(new Server().url("http://localhost:8080")))
                 .info(new Info()
-                        .title("Timesheet Service")
-                        .version("1.0")
-                        .description("Timesheet Service"))
+                		.title("Timesheet Service")
+                		.version("1.0")
+                		.description("Manages employee timesheets, including logging work hours, updating entries, and tracking daily or weekly work records."))
 
                 // 🔐 JWT Configuration
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
