@@ -4,70 +4,72 @@
 
 This project is a **microservices-based backend system** designed to manage employee timesheets, leave requests, and role-based access within an organization.
 
-It replaces manual tracking with a scalable, secure, and structured system built using **Spring Boot and Spring Cloud**.
+It replaces manual tracking with a scalable, secure, and distributed system built using **Spring Boot and Spring Cloud**, with support for messaging and tracing.
 
 ---
 
 ## 🚀 Tech Stack
 
-* **Java 17**
-* **Spring Boot**
-* **Spring Cloud (Eureka, API Gateway)**
-* **Spring Security**
-* **JWT (Authentication)**
-* **Spring Data JPA (Hibernate)**
-* **MySQL**
-* **Swagger / OpenAPI**
-* **RabbitMQ (planned)**
-* **JUnit & Mockito (planned)**
+* Java 17
+* Spring Boot
+* Spring Cloud (Eureka, API Gateway)
+* Spring Security
+* JWT (Authentication)
+* Spring Data JPA (Hibernate)
+* MySQL
+* Swagger / OpenAPI
+* RabbitMQ (Asynchronous Messaging)
+* Zipkin (Distributed Tracing)
+* Docker & Docker Compose
+* JUnit & Mockito
 
 ---
 
 ## 🏗️ Architecture
 
-This project follows a **microservices architecture** with centralized routing and security.
+This project follows a **microservices architecture** with centralized routing, messaging, and observability.
 
 ### 🔹 Services
 
-| Service Name          | Description                                                           |
-| --------------------- | --------------------------------------------------------------------- |
-| **Auth Service**      | Handles user registration, login, JWT generation, and role management |
-| **Timesheet Service** | Manages daily entries and weekly timesheets                           |
-| **Leave Service**     | Handles leave application and validation                              |
-| **Admin Service**     | Manages administrative operations and approvals                       |
+| Service Name         | Description                                                           |
+| -------------------- | --------------------------------------------------------------------- |
+| Auth Service         | Handles user registration, login, JWT generation, and role management |
+| Timesheet Service    | Manages daily entries and weekly timesheets                           |
+| Leave Service        | Handles leave application, validation, and balances                   |
+| Admin Service        | Manages administrative operations and approvals                       |
+| Notification Service | Handles email notifications using RabbitMQ events                     |
 
 ---
 
 ### 🔹 Infrastructure
 
-* **Eureka Server** → Service discovery
-* **API Gateway** → Centralized routing & authentication
+* Eureka Server → Service discovery
+* API Gateway → Centralized routing & authentication
+* RabbitMQ → Asynchronous communication between services
+* Zipkin → Distributed tracing and monitoring
+* MySQL → Database
 
 ---
 
 ## 🔐 Security Architecture
 
-* JWT is **generated in Auth Service**
-
-* JWT is **validated in API Gateway**
-
+* JWT is generated in Auth Service
+* JWT is validated in API Gateway
 * Gateway forwards user details via headers:
 
-  * `X-User-Email`
-  * `X-User-Role`
-  * `X-User-Id`
-
-* Downstream services **do not validate JWT again**
-
-* Role-based access is enforced using `@PreAuthorize`
+  * X-User-Email
+  * X-User-Role
+  * X-User-Id
+* Downstream services trust gateway headers
+* Role-based access enforced using `@PreAuthorize`
 
 ---
 
 ## 🔄 System Flow
 
-```text
 Client → API Gateway → Microservice → Database
-```
+↓
+RabbitMQ → Notification Service → Email
 
 ---
 
@@ -95,7 +97,7 @@ Client → API Gateway → Microservice → Database
 
 * Apply leave
 * Leave validation (date range, overlap)
-* Leave history & balance
+* Leave history & balance tracking
 
 ---
 
@@ -106,74 +108,73 @@ Client → API Gateway → Microservice → Database
 
 ---
 
+### 🔹 Notification System
+
+* Event-driven communication using RabbitMQ
+* Email notifications on leave actions
+* Decoupled notification service
+
+---
+
+### 🔹 Observability
+
+* Zipkin integration for distributed tracing
+* Track request flow across microservices
+
+---
+
 ### 🔹 API Documentation
 
 * Swagger integrated for all services
-* Easy API testing and exploration
+* Easy API testing
 
 ---
 
 ## 📬 API Testing
 
-### 🔹 Swagger
+### Swagger Example
 
-Example:
+http://localhost:8080/swagger-ui.html
 
-```
-http://localhost:8082/swagger-ui.html
-```
+### Gateway Access
 
-### 🔹 Postman (via Gateway)
-
-```
 http://localhost:8080/<service-endpoint>
-```
 
 ---
 
 ## ▶️ How to Run
 
-### 1. Start services in order:
+### Using Docker (Recommended)
 
-1. Eureka Server (8761)
-2. API Gateway (8080)
-3. Auth Service (8081)
-4. Timesheet Service (8082)
-5. Leave Service (8083)
-6. Admin Service (8084)
+docker-compose up --build
 
----
+### Ports
 
-### 2. Database
-
-* MySQL running on port `3306`
-* Databases auto-created
-
----
-
-### 3. Verify Eureka
-
-```
-http://localhost:8761
-```
+| Service       | Port  |
+| ------------- | ----- |
+| Eureka Server | 8761  |
+| API Gateway   | 8080  |
+| Auth Service  | 8081  |
+| Timesheet     | 8082  |
+| Leave Service | 8083  |
+| Admin Service | 8084  |
+| Zipkin        | 9411  |
+| RabbitMQ UI   | 15672 |
 
 ---
 
 ## 📁 Project Structure
 
-```
 timesheet-leave-management-system/
-│
 ├── eureka-server/
 ├── api-gateway/
 ├── auth-service/
 ├── timesheet-service/
 ├── leave-service/
 ├── admin-service/
-│
-├── docs/
+├── notification-service/
+├── docker-compose.yml
 ├── README.md
-```
 
 ---
 
@@ -182,24 +183,26 @@ timesheet-leave-management-system/
 * Centralized authentication at API Gateway
 * No JWT validation in downstream services
 * Role-based authorization using Spring Security
+* Event-driven communication using RabbitMQ
+* Distributed tracing using Zipkin
 * Clean separation of microservices
 
 ---
 
 ## 🎯 Project Goal
 
-* Demonstrate real-world **microservices architecture**
-* Implement secure backend using **JWT & Spring Security**
-* Build scalable and maintainable backend system
+* Demonstrate real-world microservices architecture
+* Implement secure backend using JWT & Spring Security
+* Showcase event-driven communication
+* Build scalable backend system
 
 ---
 
 ## 📌 Future Enhancements
 
-* RabbitMQ for async communication
-* Docker containerization
 * CI/CD pipeline
-* Email notifications
+* Advanced monitoring (Prometheus + Grafana)
+* Rate limiting
 * Frontend integration
 
 ---
@@ -207,5 +210,3 @@ timesheet-leave-management-system/
 ## 👨‍💻 Author
 
 Developed as part of Capgemini training and evaluation.
-
----
