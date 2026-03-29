@@ -36,7 +36,8 @@ public class EmailService {
         String body = "Hello " + name + ",\n\n" +
                 "You have successfully registered on the Timesheet & Leave Management System.\n" +
                 "You can now log in and manage your timesheets and leaves.\n\n" +
-                "Best Regards,\nChandan\n" +
+                "Best Regards,\n" +
+                "Chandan\n" +
                 "TMS Team";
         sendEmail(to, subject, body);
     }
@@ -46,7 +47,8 @@ public class EmailService {
         String body = "Hello " + name + ",\n\n" +
                 "Your profile details have been updated successfully.\n" +
                 "If this was not you, please contact HR immediately.\n\n" +
-                "Best Regards,\nChandan\n" +
+                "Best Regards,\n" +
+                "Chandan\n" +
                 "TMS Team";
         sendEmail(to, subject, body);
     }
@@ -56,17 +58,21 @@ public class EmailService {
         String body = "Hello,\n\n" +
                 "Your password has been changed successfully.\n" +
                 "If this was not you, please contact HR or reset your password immediately.\n\n" +
-                "Best Regards,\nChandan\n" +
+                "Best Regards,\n" +
+                "Chandan\n" +
                 "TMS Team";
         sendEmail(to, subject, body);
     }
 
-    public void sendLeaveStatusEmail(String to, String name, String status, String remarks, String leaveType, String fromDate, String toDate) {
+    public void sendLeaveStatusEmail(String to, String name, String status, String remarks, String leaveType,
+            String fromDate, String toDate) {
         String subject = "Leave Application " + status;
         String body = "Hello " + name + ",\n\n" +
-                "Your leave application for " + leaveType + " (" + fromDate + " to " + toDate + ") has been " + status.toUpperCase() + ".\n\n" +
+                "Your leave application for " + leaveType + " (" + fromDate + " to " + toDate + ") has been "
+                + status.toUpperCase() + ".\n\n" +
                 "Remarks: " + (remarks != null ? remarks : "N/A") + "\n\n" +
-                "Best Regards,\nChandan\n" +
+                "Best Regards,\n" +
+                "Chandan\n" +
                 "TMS Team";
         sendEmail(to, subject, body);
     }
@@ -76,20 +82,24 @@ public class EmailService {
         String body = "Hello " + name + ",\n\n" +
                 "Your timesheet for the week starting " + weekStart + " has been " + status.toUpperCase() + ".\n\n" +
                 "Remarks: " + (remarks != null ? remarks : "N/A") + "\n\n" +
-                "Best Regards,\nChandan\n" +
+                "Best Regards,\n" +
+                "Chandan\n" +
                 "TMS Team";
         sendEmail(to, subject, body);
     }
 
     public void sendRoleUpdateEmail(String to, String name, String oldRole, String newRole) {
         String subject = "Role Updated - TMS";
-        String action = newRole.contains("ADMIN") || (newRole.contains("MANAGER") && !oldRole.contains("ADMIN")) ? "PROMOTED" : "UPDATED";
+        String action = newRole.contains("ADMIN") || (newRole.contains("MANAGER") && !oldRole.contains("ADMIN"))
+                ? "PROMOTED"
+                : "UPDATED";
         String body = "Hello " + name + ",\n\n" +
                 "Your role in the Timesheet & Leave Management System has been " + action + ".\n" +
                 "Old Role: " + oldRole + "\n" +
                 "New Role: " + newRole + "\n\n" +
                 "Please log out and log in again to see the changes.\n\n" +
-                "Best Regards,\nChandan\n" +
+                "Best Regards,\n" +
+                "Chandan\n" +
                 "TMS Team";
         sendEmail(to, subject, body);
     }

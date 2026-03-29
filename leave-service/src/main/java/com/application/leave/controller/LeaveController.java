@@ -29,14 +29,13 @@ public class LeaveController {
 
     private final LeaveService leaveService;
 
-    // ── Employee: Core Leave Operations 
+    // ── Employee: Core Leave Operations
 
     @PostMapping("/apply")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
-    @Operation(summary = "Apply Leave",
-	description = "Only Employee and Manager can apply the leave")
+    @Operation(summary = "Apply Leave", description = "Only Employee and Manager can apply the leave")
     public ResponseEntity<LeaveResponse> applyLeave(
-            @RequestHeader("X-User-Id")    Long   employeeId,
+            @RequestHeader("X-User-Id") Long employeeId,
             @RequestHeader("X-User-Email") String employeeEmail,
             @Valid @RequestBody LeaveRequestDto request) {
 
@@ -44,7 +43,6 @@ public class LeaveController {
                 .body(leaveService.applyLeave(employeeId, employeeEmail, request));
     }
 
-    
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
     @Operation(summary = "Get Leave By Id")
@@ -73,11 +71,9 @@ public class LeaveController {
         return ResponseEntity.ok(leaveService.getLeaveHistory(employeeId));
     }
 
-    
     @PutMapping("/cancel/{id}")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
-    @Operation(summary = "Cancel Leave By Id",
-    description = "Cancel a SUBMITTED leave freely or Cancel an APPROVED leave only if it hasn't started yet — balance is restored")
+    @Operation(summary = "Cancel Leave By Id", description = "Cancel a SUBMITTED leave freely or Cancel an APPROVED leave only if it hasn't started yet — balance is restored")
     public ResponseEntity<String> cancelLeave(
             @RequestHeader("X-User-Id") Long employeeId,
             @PathVariable Long id) {
@@ -85,7 +81,6 @@ public class LeaveController {
         return ResponseEntity.ok(leaveService.cancelLeave(employeeId, id));
     }
 
-    
     @GetMapping("/types")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER', 'ADMIN')")
     @Operation(summary = "Get Leave Types", description = "List all the leave types")
@@ -94,7 +89,7 @@ public class LeaveController {
     }
 
     // ── Admin / Manager: Approval Workflow
-    
+
     @GetMapping("/admin/pending")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @Operation(summary = "Get Pending Leave", description = "Fetch all leave requests currently in SUBMITTED status pending revie")
@@ -102,7 +97,6 @@ public class LeaveController {
         return ResponseEntity.ok(leaveService.getAllSubmittedLeaves());
     }
 
-    
     @PutMapping("/admin/approve/{id}")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @Operation(summary = "Put Approve Leave By Admin", description = "Approve a submitted leave request")
@@ -113,7 +107,6 @@ public class LeaveController {
         return ResponseEntity.ok(leaveService.approveLeave(id, request));
     }
 
-    
     @PutMapping("/admin/reject/{id}")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @Operation(summary = "Put Reject Leave By Id")
@@ -124,12 +117,11 @@ public class LeaveController {
         return ResponseEntity.ok(leaveService.rejectLeave(id, request));
     }
 
-    // ── Admin: Holiday Management 
+    // ── Admin: Holiday Management
 
-    
     @PostMapping("/admin/holidays")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Add Holiday(Admin)", description = "Register a new public holiday. Affects working-day calculation for all leave requests") 
+    @Operation(summary = "Add Holiday(Admin)", description = "Register a new public holiday. Affects working-day calculation for all leave requests")
     public ResponseEntity<HolidayResponse> addHoliday(
             @Valid @RequestBody HolidayRequest request) {
 
@@ -137,20 +129,17 @@ public class LeaveController {
                 .body(leaveService.addHoliday(request));
     }
 
-    
-    @GetMapping("/admin/holidays")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Get Leave Holidays(Admin)", description = "List all public holidays for a given year, ordered by date")
+    @GetMapping("/holidays")
+    @Operation(summary = "Get Leave Holidays", description = "List all public holidays for a given year, ordered by date")
     public ResponseEntity<List<HolidayResponse>> getHolidays(
             @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().getYear()}") int year) {
 
         return ResponseEntity.ok(leaveService.getHolidaysByYear(year));
     }
 
-    
     @DeleteMapping("/admin/holidays/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary  = "Delete leave Holidays",description = "Remove a public holiday by ID")
+    @Operation(summary = "Delete leave Holidays", description = "Remove a public holiday by ID")
     public ResponseEntity<String> deleteHoliday(@PathVariable Long id) {
         return ResponseEntity.ok(leaveService.deleteHoliday(id));
     }

@@ -43,10 +43,7 @@ public class TimesheetService {
 	// Max hours allowed per day (across all projects)
 	private static final double MAX_DAILY_HOURS = 12.0;
 
-	// ─────────────────────────────────────────────────────────────────────────
 	// EMPLOYEE OPERATIONS
-	// ─────────────────────────────────────────────────────────────────────────
-
 	@Transactional
 	public TimesheetEntryResponse addEntry(Long employeeId, String employeeName, TimesheetEntryRequest request) {
 
@@ -70,12 +67,14 @@ public class TimesheetService {
 			throw new TimesheetException("Cannot log hours for a future date: " + request.getWorkDate());
 		}
 
-		// Step 4: Validate daily hours per single entry (DTO max is 12.0 but guard here too)
+		// Step 4: Validate daily hours per single entry (DTO max is 12.0 but guard here
+		// too)
 		if (request.getHoursWorked().doubleValue() > MAX_DAILY_HOURS) {
 			throw new TimesheetException("Hours per entry cannot exceed " + MAX_DAILY_HOURS + " hours.");
 		}
 
-		// Step 5: Find or create weekly timesheet — always anchored to the Monday of that week
+		// Step 5: Find or create weekly timesheet — always anchored to the Monday of
+		// that week
 		LocalDate weekStart = request.getWorkDate().with(DayOfWeek.MONDAY);
 		Timesheet timesheet = timesheetRepo.findByEmployeeIdAndWeekStartDate(employeeId, weekStart)
 				.orElseGet(() -> createNewTimesheet(employeeId, employeeName, weekStart));
@@ -338,9 +337,7 @@ public class TimesheetService {
 				.collect(Collectors.toList());
 	}
 
-	// ─────────────────────────────────────────────────────────────────────────
 	// ADMIN / MANAGER OPERATIONS
-	// ─────────────────────────────────────────────────────────────────────────
 
 	public List<WeeklyTimesheetResponse> getSubmittedTimesheets() {
 		return timesheetRepo.findByStatus(TimesheetStatus.SUBMITTED).stream()
@@ -368,7 +365,7 @@ public class TimesheetService {
 		timesheet.setManagerComment(request.getComment());
 		timesheetRepo.save(timesheet);
 
-		        log.info("Timesheet approved: timesheetId={}, employee={}",
+		log.info("Timesheet approved: timesheetId={}, employee={}",
 				timesheetId, timesheet.getEmployeeId());
 
 		// Notify employee
@@ -405,7 +402,7 @@ public class TimesheetService {
 		timesheet.setManagerComment(request.getComment());
 		timesheetRepo.save(timesheet);
 
-		        log.info("Timesheet rejected: timesheetId={}, employee={}",
+		log.info("Timesheet rejected: timesheetId={}, employee={}",
 				timesheetId, timesheet.getEmployeeId());
 
 		// Notify employee
@@ -419,9 +416,7 @@ public class TimesheetService {
 		return "Timesheet ID " + timesheetId + " has been rejected.";
 	}
 
-	// ─────────────────────────────────────────────────────────────────────────
 	// PRIVATE HELPERS
-	// ─────────────────────────────────────────────────────────────────────────
 
 	private Timesheet createNewTimesheet(Long employeeId, String employeeName, LocalDate weekStart) {
 		Timesheet ts = Timesheet.builder()

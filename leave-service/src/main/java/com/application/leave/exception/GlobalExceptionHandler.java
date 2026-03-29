@@ -52,12 +52,11 @@ public class GlobalExceptionHandler {
 
         log.warn("Access denied at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
-                buildError(HttpStatus.FORBIDDEN, "You do not have permission to access this resource.", request.getRequestURI()));
+                buildError(HttpStatus.FORBIDDEN, "You do not have permission to access this resource.",
+                        request.getRequestURI()));
     }
 
     // ── Anything unexpected → 500 Internal Server Error ─────────────────────
-    // NOTE: This now correctly catches only un-anticipated runtime errors.
-    // Business errors are handled above by the LeaveException handler.
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleAll(
             Exception ex, HttpServletRequest request) {
@@ -72,10 +71,10 @@ public class GlobalExceptionHandler {
     private Map<String, Object> buildError(HttpStatus status, String message, String path) {
         Map<String, Object> error = new HashMap<>();
         error.put("timestamp", LocalDateTime.now().toString());
-        error.put("status",    status.value());
-        error.put("error",     status.getReasonPhrase());
-        error.put("message",   message);
-        error.put("path",      path);
+        error.put("status", status.value());
+        error.put("error", status.getReasonPhrase());
+        error.put("message", message);
+        error.put("path", path);
         return error;
     }
 }

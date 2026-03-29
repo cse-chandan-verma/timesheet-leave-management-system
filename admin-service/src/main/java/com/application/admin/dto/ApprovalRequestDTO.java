@@ -1,6 +1,6 @@
 package com.application.admin.dto;
 
-import lombok.AllArgsConstructor;
+// Removed unused import
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -11,7 +11,11 @@ import lombok.NoArgsConstructor;
  */
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class ApprovalRequestDTO {
+    private Long employeeId;
     private String comment;
+
+    public ApprovalRequestDTO(String comment) {
+        this.comment = comment;
+    }
 }

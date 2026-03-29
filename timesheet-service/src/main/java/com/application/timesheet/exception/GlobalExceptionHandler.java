@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import org.springframework.security.access.AccessDeniedException;
 
 @Slf4j
 @RestControllerAdvice
@@ -39,6 +40,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(
                 buildError(HttpStatus.BAD_REQUEST,
                         ex.getMessage(), request.getRequestURI()));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(
+            AccessDeniedException ex, HttpServletRequest request) {
+        log.warn("Access denied error: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                buildError(HttpStatus.FORBIDDEN,
+                        "You don't have permission to access this resource", request.getRequestURI()));
     }
 
     @ExceptionHandler(Exception.class)

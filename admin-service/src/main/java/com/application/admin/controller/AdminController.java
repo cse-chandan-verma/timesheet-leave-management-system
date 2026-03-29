@@ -88,7 +88,8 @@ public class AdminController {
             @RequestBody(required = false) ApprovalRequestDTO request) {
 
         String comment = (request != null) ? request.getComment() : null;
-        String message = adminService.approveLeave(id, comment);
+        Long employeeId = (request != null) ? request.getEmployeeId() : null;
+        String message = adminService.approveLeave(id, employeeId, comment);
 
         return ResponseEntity.ok(
                 new ApiResponseDTO<>(message, null));
@@ -101,7 +102,7 @@ public class AdminController {
             @PathVariable Long id,
             @Valid @RequestBody ApprovalRequestDTO request) {
 
-        String message = adminService.rejectLeave(id, request.getComment());
+        String message = adminService.rejectLeave(id, request.getEmployeeId(), request.getComment());
 
         return ResponseEntity.ok(
                 new ApiResponseDTO<>(message, null));

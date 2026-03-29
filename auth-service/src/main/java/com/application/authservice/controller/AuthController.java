@@ -24,22 +24,9 @@ public class AuthController {
 
     private final AuthService authService;
 
-
-    // ══════════════════════════════════════════════════════════
-    // PUBLIC ENDPOINTS — No token required
-    // ══════════════════════════════════════════════════════════
-
-    /**
-     * REGISTER
-     * Open to everyone. Always creates EMPLOYEE role.
-     * No role field in request body by design.
-     */
     @PostMapping("/register")
-    @Operation(
-        summary = "Register new employee",
-        description = "Creates a new account. Role is always EMPLOYEE. "
-                    + "Role promotion done separately by Admin only."
-    )
+    @Operation(summary = "Register new employee", description = "Creates a new account. Role is always EMPLOYEE. "
+            + "Role promotion done separately by Admin only.")
     public ResponseEntity<String> register(
             @Valid @RequestBody RegisterRequest request) {
 
@@ -48,37 +35,17 @@ public class AuthController {
                 .body(authService.register(request));
     }
 
-    /**
-     * LOGIN
-     * Open to everyone.
-     */
     @PostMapping("/login")
-    @Operation(
-        summary = "Login",
-        description = "Returns JWT token with role and user info"
-    )
+    @Operation(summary = "Login", description = "Returns JWT token with role and user info")
     public ResponseEntity<AuthResponse> login(
             @Valid @RequestBody LoginRequest request) {
 
         return ResponseEntity.ok(authService.login(request));
     }
 
-
-    // ══════════════════════════════════════════════════════════
-    // PROTECTED ENDPOINTS — Valid JWT required
-    // ══════════════════════════════════════════════════════════
-
-    /**
-     * GET MY PROFILE
-     * Any logged-in user can view their own profile.
-     * Email is read from the JWT token via X-User-Email header.
-     */
     @GetMapping("/profile")
     @PreAuthorize("isAuthenticated()")
-    @Operation(
-        summary = "Get my profile",
-        description = "Returns profile of the currently logged-in user"
-    )
+    @Operation(summary = "Get my profile", description = "Returns profile of the currently logged-in user")
     public ResponseEntity<UserProfileResponse> getProfile(
             @RequestHeader("X-User-Email") String email) {
         // X-User-Email is added by the Gateway after JWT validation
@@ -87,19 +54,10 @@ public class AuthController {
         return ResponseEntity.ok(authService.getProfile(email));
     }
 
-    /**
-     * UPDATE MY PROFILE
-     * Any logged-in user can update their own profile.
-     * Can update: fullName, password
-     * Cannot update: email, employeeCode, role
-     */
     @PutMapping("/profile")
     @PreAuthorize("isAuthenticated()")
-    @Operation(
-        summary = "Update my profile",
-        description = "Update fullName or password. "
-                    + "To change password, provide currentPassword too."
-    )
+    @Operation(summary = "Update my profile", description = "Update fullName or password. "
+            + "To change password, provide currentPassword too.")
     public ResponseEntity<UserProfileResponse> updateProfile(
             @RequestHeader("X-User-Email") String email,
             @Valid @RequestBody UpdateProfileRequest request) {
@@ -108,61 +66,34 @@ public class AuthController {
                 authService.updateProfile(email, request));
     }
 
-
-    // ══════════════════════════════════════════════════════════
-    // ADMIN-ONLY ENDPOINTS — ADMIN role required
-    // ══════════════════════════════════════════════════════════
-
-    /**
-     * PROMOTE ROLE — ADMIN ONLY
-     *
-     * Only ADMIN can call this endpoint.
-     * @PreAuthorize("hasRole('ADMIN')") enforces this at the method level.
-     *
-     * If a MANAGER or EMPLOYEE tries to call this:
-     *   → 403 Forbidden automatically
-     *
-     * Use case: HR promotes an employee to MANAGER or ADMIN.
-     */
     @PutMapping("/admin/promote")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(
-        summary = "Promote user role (Admin only)",
-        description = "Only ADMIN can promote a user to MANAGER or ADMIN. "
-                    + "User must re-login after promotion for new role to apply."
-    )
+    @Operation(summary = "Promote user role (Admin only)", description = "Only ADMIN can promote a user to MANAGER or ADMIN. "
+            + "User must re-login after promotion for new role to apply.")
     public ResponseEntity<String> promoteRole(
             @Valid @RequestBody PromoteRoleRequest request) {
 
         return ResponseEntity.ok(authService.promoteRole(request));
     }
-    
+
     @PostMapping("/forgot-password")
     public ResponseEntity<String> forgotPassword(
-            @Valid @RequestBody
-                ForgotPasswordRequest request) {
+            @Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request);
         return ResponseEntity.ok(
-            "Password updated successfully!");
+                "Password updated successfully!");
     }
+
     @GetMapping("/users")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
-    @Operation(summary = "Get all users (Admin/Manager only)",
-    				description = "Only Admin and Manager have the access to see all the users")
+    @Operation(summary = "Get all users (Admin/Manager only)", description = "Only Admin and Manager have the access to see all the users")
     public ResponseEntity<List<UserResponseDto>> getAllUsers() {
         return ResponseEntity.ok(authService.getAllUsers());
     }
 
-    /**
-     * GET ANY USER'S PROFILE — ADMIN ONLY
-     * Admin can view any employee's profile by email.
-     */
     @GetMapping("/admin/user/{email}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(
-        summary = "Get any user's profile (Admin only)",
-        description = "Admin can look up any employee's profile by email"
-    )
+    @Operation(summary = "Get any user's profile (Admin only)", description = "Admin can look up any employee's profile by email")
     public ResponseEntity<UserProfileResponse> getUserProfile(
             @PathVariable String email) {
 

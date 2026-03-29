@@ -17,6 +17,8 @@ import com.application.timesheet.dto.TimesheetEntryResponse;
 import com.application.timesheet.dto.UpdateEntryRequest;
 import com.application.timesheet.dto.WeeklyTimesheetResponse;
 import com.application.timesheet.service.TimesheetService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -25,21 +27,18 @@ import java.util.List;
 @RestController
 @RequestMapping("/timesheet")
 @RequiredArgsConstructor
+@Tag(name = "Timesheet Controller", description = "Operations related to employee timesheets and work entries")
 public class TimesheetController {
 
     private final TimesheetService timesheetService;
 
     // ── Employee: Entry Management ────────────────────────────────────────────
 
-    /**
-     * POST /timesheet/entries
-     * Add a new daily work entry to the current week's timesheet (auto-created if missing).
-     * Rejects: weekends, future dates, inactive projects, duplicates, daily hour overflows.
-     */
     @PostMapping("/entries")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
+    @Operation(summary = "Add Timesheet Entry", description = "Create a new daily work entry for the current week. Automatically creates a weekly timesheet if one doesn't exist.")
     public ResponseEntity<TimesheetEntryResponse> addEntry(
-            @RequestHeader("X-User-Id")    Long   employeeId,
+            @RequestHeader("X-User-Id") Long employeeId,
             @RequestHeader("X-User-Email") String employeeName,
             @Valid @RequestBody TimesheetEntryRequest request) {
 
@@ -47,13 +46,9 @@ public class TimesheetController {
                 .body(timesheetService.addEntry(employeeId, employeeName, request));
     }
 
-    /**
-     * PUT /timesheet/entries/{entryId}
-     * Update hours/summary of an existing entry. Only allowed on DRAFT or REJECTED timesheets.
-     * Validates ownership and daily hour limits after the update.
-     */
     @PutMapping("/entries/{entryId}")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
+    @Operation(summary = "Update Timesheet Entry(EMPLOYEE,MANAGER)", description = "Modify an existing entry's hours or summary. Only valid for DRAFT or REJECTED timesheets.")
     public ResponseEntity<TimesheetEntryResponse> updateEntry(
             @RequestHeader("X-User-Id") Long employeeId,
             @PathVariable Long entryId,
@@ -62,30 +57,22 @@ public class TimesheetController {
         return ResponseEntity.ok(timesheetService.updateEntry(entryId, employeeId, request));
     }
 
-    /**
-     * DELETE /timesheet/entries/{entryId}
-     * Remove an entry from a DRAFT or REJECTED timesheet.
-     * Total hours on the parent timesheet are automatically recalculated.
-     */
     @DeleteMapping("/entries/{entryId}")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
-    public ResponseEntity<Void> deleteEntry(
+    @Operation(summary = "Delete Timesheet Entry(EMPLOYEE,MANAGER)", description = "Remove an entry from a DRAFT or REJECTED timesheet. Total hours on the parent timesheet are automatically recalculated.")
+    public ResponseEntity<String> deleteEntry(
             @RequestHeader("X-User-Id") Long employeeId,
             @PathVariable Long entryId) {
 
         timesheetService.deleteEntry(entryId, employeeId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok("Timesheet entry ID " + entryId + " has been successfully deleted.");
     }
 
     // ── Employee: Timesheet Management ───────────────────────────────────────
 
-    /**
-     * GET /timesheet/weeks/{weekStart}
-     * Retrieve the full weekly timesheet for any date in the target week.
-     * The date is normalised to the Monday of that week automatically.
-     */
     @GetMapping("/weeks/{weekStart}")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
+    @Operation(summary = "Get Weekly Timesheet(EMPLOYEE,MANAGER)", description = "Retrieve the full weekly timesheet for any date in the target week. The date is normalised to the Monday of that week automatically.")
     public ResponseEntity<WeeklyTimesheetResponse> getWeeklyTimesheet(
             @RequestHeader("X-User-Id") Long employeeId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart) {
@@ -93,15 +80,11 @@ public class TimesheetController {
         return ResponseEntity.ok(timesheetService.getWeeklyTimesheet(employeeId, weekStart));
     }
 
-    /**
-     * POST /timesheet/weeks/submit
-     * Submit a DRAFT or REJECTED timesheet for manager review.
-     * Validates all Mon–Fri have entries and total hours ≤ 60.
-     */
     @PostMapping("/weeks/submit")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
+    @Operation(summary = "Submit Timesheet(EMPLOYEE,MANAGER)", description = "Submit a DRAFT or REJECTED timesheet for manager review. Validates all Mon–Fri have entries and total hours ≤ 60.")
     public ResponseEntity<String> submitTimesheet(
-            @RequestHeader("X-User-Id")    Long   employeeId,
+            @RequestHeader("X-User-Id") Long employeeId,
             @RequestHeader("X-User-Email") String employeeEmail,
             @Valid @RequestBody SubmitTimesheetRequest request) {
 
@@ -109,13 +92,9 @@ public class TimesheetController {
                 timesheetService.submitTimesheet(employeeId, employeeEmail, request));
     }
 
-    /**
-     * POST /timesheet/weeks/recall
-     * Pull back a SUBMITTED timesheet to DRAFT before it is reviewed.
-     * Useful for correcting mistakes after submission.
-     */
     @PostMapping("/weeks/recall")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
+    @Operation(summary = "Recall Weekly Timesheet(EMPLOYEE,MANAGER)", description = "Pull back a SUBMITTED timesheet to DRAFT before it is reviewed. Useful for correcting mistakes after submission.")
     public ResponseEntity<String> recallTimesheet(
             @RequestHeader("X-User-Id") Long employeeId,
             @Valid @RequestBody SubmitTimesheetRequest request) {
@@ -123,49 +102,34 @@ public class TimesheetController {
         return ResponseEntity.ok(timesheetService.recallTimesheet(employeeId, request));
     }
 
-    /**
-     * GET /timesheet/history
-     * Get all timesheets for the calling employee, ordered newest first.
-     */
     @GetMapping("/history")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
+    @Operation(summary = "Get Weekly Timesheet History(EMPLOYEE,MANAGER)", description = "Get all timesheets for the calling employee, ordered newest first.")
     public ResponseEntity<List<WeeklyTimesheetResponse>> getHistory(
             @RequestHeader("X-User-Id") Long employeeId) {
 
         return ResponseEntity.ok(timesheetService.getAllTimesheets(employeeId));
     }
 
-    /**
-     * GET /timesheet/projects
-     * List all active projects available for timesheet entries (for dropdowns).
-     * Returns a clean DTO, not the raw entity.
-     */
     @GetMapping("/projects")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
+    @Operation(summary = "Get Active Projects(EMPLOYEE,MANAGER)", description = "List all active projects available for timesheet entries (for dropdowns).")
     public ResponseEntity<List<ProjectResponse>> getProjects() {
         return ResponseEntity.ok(timesheetService.getActiveProjects());
     }
 
     // ── Admin / Manager: Approval Workflow ───────────────────────────────────
 
-    /**
-     * GET /timesheet/admin/submitted
-     * Fetch every timesheet currently pending review (status = SUBMITTED).
-     * Includes employeeId and employeeName so managers know whose sheet it is.
-     */
     @GetMapping("/admin/submitted")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @Operation(summary = "Get Submitted Timesheets(MANAGER,ADMIN)", description = "Fetch every timesheet currently pending review (status = SUBMITTED).")
     public ResponseEntity<List<WeeklyTimesheetResponse>> getSubmittedTimesheets() {
         return ResponseEntity.ok(timesheetService.getSubmittedTimesheets());
     }
 
-    /**
-     * PUT /timesheet/admin/approve/{timesheetId}
-     * Approve a submitted timesheet. An optional comment can be added.
-     * Only timesheets in SUBMITTED status can be approved.
-     */
     @PutMapping("/admin/approve/{timesheetId}")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @Operation(summary = "Approve Timesheet(ADMIN, MANAGER)", description = "Approve a submitted timesheet. An optional comment can be added.")
     public ResponseEntity<String> approveTimesheet(
             @PathVariable Long timesheetId,
             @Valid @RequestBody ApproveRejectRequest request) {
@@ -173,13 +137,9 @@ public class TimesheetController {
         return ResponseEntity.ok(timesheetService.approveTimesheet(timesheetId, request));
     }
 
-    /**
-     * PUT /timesheet/admin/reject/{timesheetId}
-     * Reject a submitted timesheet. A comment is MANDATORY so the employee
-     * knows what to fix before resubmitting.
-     */
     @PutMapping("/admin/reject/{timesheetId}")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @Operation(summary = "Reject Timesheet(MANAGER,ADMIN)", description = "Reject a submitted timesheet with a mandatory comment explaining the reason for rejection.")
     public ResponseEntity<String> rejectTimesheet(
             @PathVariable Long timesheetId,
             @Valid @RequestBody ApproveRejectRequest request) {

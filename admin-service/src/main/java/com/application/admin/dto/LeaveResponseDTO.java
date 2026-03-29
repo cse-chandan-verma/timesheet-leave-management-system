@@ -17,6 +17,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class LeaveResponseDTO {
     private Long          id;
+    private Long          employeeId;
+    private String        employeeName;
     private String        leaveTypeName;
     private String        leaveTypeCode;
     private LocalDate     fromDate;

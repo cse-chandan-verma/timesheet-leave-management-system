@@ -56,18 +56,20 @@ public class AdminService {
         return leaveClient.getPendingLeaveRequests();
     }
 
-    public String approveLeave(Long leaveId, String comment) {
+    public String approveLeave(Long leaveId, Long employeeId, String comment) {
         log.info("Approving leave request: {}", leaveId);
         ApprovalRequestDTO request = new ApprovalRequestDTO(comment);
+        request.setEmployeeId(employeeId);
         return leaveClient.approveLeave(leaveId, request);
     }
 
-    public String rejectLeave(Long leaveId, String comment) {
+    public String rejectLeave(Long leaveId, Long employeeId, String comment) {
         log.info("Rejecting leave request: {}", leaveId);
         if (comment == null || comment.isBlank()) {
             throw new AdminException("Rejection comment is mandatory.");
         }
         ApprovalRequestDTO request = new ApprovalRequestDTO(comment);
+        request.setEmployeeId(employeeId);
         return leaveClient.rejectLeave(leaveId, request);
     }
 

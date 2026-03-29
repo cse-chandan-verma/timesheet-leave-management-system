@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class LeaveResponse {
     private Long          id;
+    private Long          employeeId;
+    private String        employeeName;
     private String        leaveTypeName;
     private String        leaveTypeCode;
     private LocalDate     fromDate;

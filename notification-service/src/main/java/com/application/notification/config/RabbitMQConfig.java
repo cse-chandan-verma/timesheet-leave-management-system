@@ -6,18 +6,24 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.amqp.support.converter.MessageConverter;
 
 @Configuration
 public class RabbitMQConfig {
 
     public static final String EXCHANGE_NAME = "tms.exchange";
-    
+
     public static final String REGISTRATION_QUEUE = "notification.registration.queue";
     public static final String PROFILE_UPDATE_QUEUE = "notification.profile.queue";
     public static final String PASSWORD_CHANGE_QUEUE = "notification.password.queue";
     public static final String LEAVE_UPDATE_QUEUE = "notification.leave.queue";
     public static final String TIMESHEET_UPDATE_QUEUE = "notification.timesheet.queue";
     public static final String ROLE_UPDATE_QUEUE = "notification.role.queue";
+
+    public static final String TIMESHEET_APPROVE_QUEUE = "notification.timesheet.approve.queue";
+    public static final String TIMESHEET_REJECT_QUEUE = "notification.timesheet.reject.queue";
+    public static final String LEAVE_APPROVE_QUEUE = "notification.leave.approve.queue";
+    public static final String LEAVE_REJECT_QUEUE = "notification.leave.reject.queue";
 
     @Bean
     public TopicExchange tmsExchange() {
@@ -55,6 +61,26 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue timesheetApproveQueue() {
+        return new Queue(TIMESHEET_APPROVE_QUEUE, true);
+    }
+
+    @Bean
+    public Queue timesheetRejectQueue() {
+        return new Queue(TIMESHEET_REJECT_QUEUE, true);
+    }
+
+    @Bean
+    public Queue leaveApproveQueue() {
+        return new Queue(LEAVE_APPROVE_QUEUE, true);
+    }
+
+    @Bean
+    public Queue leaveRejectQueue() {
+        return new Queue(LEAVE_REJECT_QUEUE, true);
+    }
+
+    @Bean
     public Binding registrationBinding(Queue registrationQueue, TopicExchange tmsExchange) {
         return BindingBuilder.bind(registrationQueue).to(tmsExchange).with("user.registered");
     }
@@ -75,6 +101,16 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Binding leaveApproveBinding(Queue leaveApproveQueue, TopicExchange tmsExchange) {
+        return BindingBuilder.bind(leaveApproveQueue).to(tmsExchange).with("leave.status.approved");
+    }
+
+    @Bean
+    public Binding leaveRejectBinding(Queue leaveRejectQueue, TopicExchange tmsExchange) {
+        return BindingBuilder.bind(leaveRejectQueue).to(tmsExchange).with("leave.status.rejected");
+    }
+
+    @Bean
     public Binding timesheetUpdateBinding(Queue timesheetUpdateQueue, TopicExchange tmsExchange) {
         return BindingBuilder.bind(timesheetUpdateQueue).to(tmsExchange).with("timesheet.status.updated");
     }
@@ -85,7 +121,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Jackson2JsonMessageConverter messageConverter() {
+    public MessageConverter messageConverter() {
         return new Jackson2JsonMessageConverter();
     }
 

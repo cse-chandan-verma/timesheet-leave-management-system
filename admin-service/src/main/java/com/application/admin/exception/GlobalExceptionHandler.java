@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import feign.FeignException;
 
 /**
  * Robust error handling for the admin-service.
@@ -23,6 +24,14 @@ public class GlobalExceptionHandler {
         body.put("message", ex.getMessage());
         body.put("status", HttpStatus.BAD_REQUEST.value());
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<String> handleFeignException(FeignException ex) {
+        // Forward the exact error payload from the downstream service
+        return ResponseEntity.status(ex.status())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(ex.contentUTF8());
     }
 
     @ExceptionHandler(Exception.class)

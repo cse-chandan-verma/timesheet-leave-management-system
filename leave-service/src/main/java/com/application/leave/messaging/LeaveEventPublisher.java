@@ -70,12 +70,19 @@ public class LeaveEventPublisher {
             event.put("fromDate",  fromDate.toString());
             event.put("toDate",    toDate.toString());
 
+            String routingKey = "leave.status.updated"; // Default fallback
+            if ("APPROVED".equalsIgnoreCase(status)) {
+                routingKey = "leave.status.approved";
+            } else if ("REJECTED".equalsIgnoreCase(status)) {
+                routingKey = "leave.status.rejected";
+            }
+
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.EXCHANGE_NAME,
-                    "leave.status.updated",
+                    routingKey,
                     event);
 
-            log.info("Published leave.status.updated event for: {}", email);
+            log.info("Published {} event for: {}", routingKey, email);
 
         } catch (Exception e) {
             log.error("Failed to publish leave status update: {}", e.getMessage());
