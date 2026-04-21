@@ -9,31 +9,32 @@ spring:
 
   cloud:
     gateway:
-         routes:
-         - id: auth-service
-           uri: lb://auth-service
-           predicates:
+      routes:
+        # ── Business routes ────────────────────────────────────────────
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
             - Path=/auth/**
 
-         - id: timesheet-service
-           uri: lb://timesheet-service
-           predicates:
+        - id: timesheet-service
+          uri: lb://timesheet-service
+          predicates:
             - Path=/timesheet/**
 
-         - id: leave-service
-           uri: lb://leave-service
-           predicates:
-             - Path=/leave/**
+        - id: leave-service
+          uri: lb://leave-service
+          predicates:
+            - Path=/leave/**
 
-         - id: admin-service
-           uri: lb://admin-service
-           predicates:
+        - id: admin-service
+          uri: lb://admin-service
+          predicates:
             - Path=/admin/**
 
-         - id: notification-service
-           uri: lb://notification-service
-           predicates:
-             - Path=/notification/**
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/notification/**
 
 eureka:
   instance:
@@ -46,7 +47,30 @@ eureka:
     fetch-registry: true
 
 jwt:
- secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET}
+
+# ── Swagger aggregation ────────────────────────────────────────────────
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    # Tell Swagger UI to call each service's /v3/api-docs through the gateway
+    urls:
+      - name: Auth Service
+        url: /auth/v3/api-docs
+      - name: Timesheet Service
+        url: /timesheet/v3/api-docs
+      - name: Leave Service
+        url: /leave/v3/api-docs
+      - name: Admin Service
+        url: /admin/v3/api-docs
+    urls-primary-name: Auth Service
+    disable-swagger-default-url: true
+    display-request-duration: true
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  # Required for WebFlux gateway — use reactive
+  use-management-port: false
 
 logging:
   level:
@@ -59,11 +83,11 @@ management:
       probability: 1.0
   zipkin:
     tracing:
-      endpoint: http://zipkin:9411/api/v2/spans
+      endpoint: http://${ZIPKIN_HOST:localhost}:9411/api/v2/spans
   endpoints:
     web:
       exposure:
         include: "health,info,gateway"
   endpoint:
     health:
-      show-details: always
+      show-details: always

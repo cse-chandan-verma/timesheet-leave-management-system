@@ -1,0 +1,10 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!pom.xml
+.git/
+.idea/
+.vscode/
+*.iml
+*.log
+bin/
+obj/
