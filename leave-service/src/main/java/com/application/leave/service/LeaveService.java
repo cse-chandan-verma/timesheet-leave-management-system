@@ -18,6 +18,7 @@ import com.application.leave.entity.LeaveRequest;
 import com.application.leave.entity.LeaveRequest.LeaveStatus;
 import com.application.leave.entity.LeaveType;
 import com.application.leave.exception.LeaveException;
+import com.application.leave.feign.AuthServiceClient;
 import com.application.leave.messaging.LeaveEventPublisher;
 import com.application.leave.repository.HolidayRepository;
 import com.application.leave.repository.LeaveBalanceRepository;
@@ -40,6 +41,7 @@ public class LeaveService {
         private final LeaveTypeRepository leaveTypeRepo;
         private final HolidayRepository holidayRepo;
         private final LeaveEventPublisher eventPublisher;
+        private final AuthServiceClient authServiceClient;
 
         // EMPLOYEE: APPLY LEAVE
 
@@ -230,10 +232,12 @@ public class LeaveService {
                                 .collect(Collectors.toList());
         }
 
-        // ADMIN / MANAGER: GET ALL SUBMITTED LEAVES
-
-        public List<LeaveResponse> getAllSubmittedLeaves() {
-                return leaveRequestRepo.findByStatus(LeaveStatus.SUBMITTED)
+        // MANAGER: GET SUBMITTED LEAVES FOR OWN TEAM ONLY
+        public List<LeaveResponse> getAllSubmittedLeaves(Long managerId) {
+                List<Long> teamEmployeeIds = authServiceClient.getTeamEmployeeIds(managerId);
+                if (teamEmployeeIds.isEmpty())
+                        return List.of();
+                return leaveRequestRepo.findByEmployeeIdInAndStatus(teamEmployeeIds, LeaveStatus.SUBMITTED)
                                 .stream()
                                 .map(this::mapToResponse)
                                 .collect(Collectors.toList());
@@ -249,7 +253,8 @@ public class LeaveService {
                                                 "Leave request not found with ID: " + leaveRequestId));
 
                 if (!request.getEmployeeId().equals(req.getEmployeeId())) {
-                        throw new LeaveException("Employee ID mismatch: Leave request #" + leaveRequestId + " does not belong to employee ID " + req.getEmployeeId());
+                        throw new LeaveException("Employee ID mismatch: Leave request #" + leaveRequestId
+                                        + " does not belong to employee ID " + req.getEmployeeId());
                 }
 
                 if (request.getStatus() == LeaveStatus.APPROVED || request.getStatus() == LeaveStatus.CANCELLED) {
@@ -311,7 +316,8 @@ public class LeaveService {
                                                 "Leave request not found with ID: " + leaveRequestId));
 
                 if (!request.getEmployeeId().equals(req.getEmployeeId())) {
-                        throw new LeaveException("Employee ID mismatch: Leave request #" + leaveRequestId + " does not belong to employee ID " + req.getEmployeeId());
+                        throw new LeaveException("Employee ID mismatch: Leave request #" + leaveRequestId
+                                        + " does not belong to employee ID " + req.getEmployeeId());
                 }
 
                 if (request.getStatus() == LeaveStatus.REJECTED || request.getStatus() == LeaveStatus.CANCELLED) {
@@ -323,7 +329,8 @@ public class LeaveService {
                 // If rejecting an already approved leave, restore the balance!
                 if (request.getStatus() == LeaveStatus.APPROVED) {
                         restoreBalance(request.getEmployeeId(), request);
-                        log.info("Balance restored for employee {} due to manager rejecting an already approved leave.", request.getEmployeeId());
+                        log.info("Balance restored for employee {} due to manager rejecting an already approved leave.",
+                                        request.getEmployeeId());
                 }
 
                 // Rejection comment is mandatory so employee knows what to correct

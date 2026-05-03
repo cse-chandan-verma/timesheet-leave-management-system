@@ -28,49 +28,54 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        // Case 1: came through Gateway — headers already set by gateway
+        String email = request.getHeader("X-User-Email");
+        String role  = request.getHeader("X-User-Role");
+
+        if (email != null && role != null) {
+            UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(
+                    email, null,
+                    List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                );
+            authentication.setDetails(
+                new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // Case 2: direct Swagger access — parse JWT ourselves
         String authHeader = request.getHeader("Authorization");
 
-        // ✅ CRITICAL: No token = just continue, DO NOT send 401 here
-        // Let SecurityConfig.permitAll() handle public endpoints
-        // Let SecurityConfig.authenticated() handle protected endpoints
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // Token present — extract and validate
         String token = authHeader.substring(7);
 
-        // ✅ CRITICAL: Invalid token = just continue, DO NOT send 401 here
-        // Spring Security will handle unauthorized access automatically
         if (!jwtUtil.validateToken(token)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // Token is valid — extract user info
-        String email  = jwtUtil.extractEmail(token);
-        String role   = jwtUtil.extractRole(token);
+        email = jwtUtil.extractEmail(token);
+        role  = jwtUtil.extractRole(token);
 
-        // Set authentication in SecurityContext only if not already set
         if (email != null &&
             SecurityContextHolder.getContext().getAuthentication() == null) {
 
             UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(
-                    email,
-                    null,
+                    email, null,
                     List.of(new SimpleGrantedAuthority("ROLE_" + role))
                 );
-
             authentication.setDetails(
-                new WebAuthenticationDetailsSource().buildDetails(request)
-            );
-
+                new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }
 
-        // Always continue the filter chain
         filterChain.doFilter(request, response);
     }
 }

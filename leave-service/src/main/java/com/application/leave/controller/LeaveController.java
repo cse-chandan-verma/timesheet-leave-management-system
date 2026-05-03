@@ -91,15 +91,16 @@ public class LeaveController {
     // ── Admin / Manager: Approval Workflow
 
     @GetMapping("/admin/pending")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Get Pending Leave", description = "Fetch all leave requests currently in SUBMITTED status pending revie")
-    public ResponseEntity<List<LeaveResponse>> getPendingLeaves() {
-        return ResponseEntity.ok(leaveService.getAllSubmittedLeaves());
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(summary = "Get Pending Leave (MANAGER only)", description = "Fetch all SUBMITTED leave requests for the calling manager's team only.")
+    public ResponseEntity<List<LeaveResponse>> getPendingLeaves(
+            @RequestHeader("X-User-Id") Long managerId) {
+        return ResponseEntity.ok(leaveService.getAllSubmittedLeaves(managerId));
     }
 
     @PutMapping("/admin/approve/{id}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Put Approve Leave By Admin", description = "Approve a submitted leave request")
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(summary = "Approve Leave (MANAGER only)")
     public ResponseEntity<String> approveLeave(
             @PathVariable Long id,
             @Valid @RequestBody ApproveRejectLeaveRequest request) {
@@ -108,8 +109,8 @@ public class LeaveController {
     }
 
     @PutMapping("/admin/reject/{id}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Put Reject Leave By Id")
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(summary = "Reject Leave (MANAGER only)")
     public ResponseEntity<String> rejectLeave(
             @PathVariable Long id,
             @Valid @RequestBody ApproveRejectLeaveRequest request) {

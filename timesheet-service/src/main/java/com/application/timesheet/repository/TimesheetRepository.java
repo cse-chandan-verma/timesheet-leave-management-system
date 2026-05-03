@@ -19,5 +19,7 @@ public interface TimesheetRepository extends JpaRepository<Timesheet, Long> {
 
 	List<Timesheet> findByStatus(TimesheetStatus status);
 
+	List<Timesheet> findByEmployeeIdInAndStatus(List<Long> employeeIds, TimesheetStatus status);
+
 	boolean existsByEmployeeIdAndWeekStartDate(Long employeeId, LocalDate weekStartDate);
 }

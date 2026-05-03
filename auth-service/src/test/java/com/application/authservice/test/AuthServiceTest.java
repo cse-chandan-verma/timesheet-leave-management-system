@@ -53,7 +53,6 @@ class AuthServiceTest {
                 .email("john@company.com")
                 .password("encodedPassword")
                 .role(User.Role.EMPLOYEE)
-                .isActive(true)
                 .build();
 
         inactiveUser = User.builder()
@@ -63,7 +62,6 @@ class AuthServiceTest {
                 .email("jane@company.com")
                 .password("encodedPassword")
                 .role(User.Role.EMPLOYEE)
-                .isActive(false)
                 .build();
     }
 
@@ -292,7 +290,6 @@ class AuthServiceTest {
         assertThat(profile.getEmail()).isEqualTo("john@company.com");
         assertThat(profile.getFullName()).isEqualTo("John Doe");
         assertThat(profile.getRole()).isEqualTo("EMPLOYEE");
-        assertThat(profile.isActive()).isTrue();
     }
 
     @Test
@@ -428,7 +425,7 @@ class AuthServiceTest {
         when(userRepository.save(any(User.class)))
                 .thenReturn(activeUser);
 
-        String result = authService.promoteRole(request);
+        String result = authService.promoteRole(request, "admin@company.com");
 
         assertThat(result).contains("MANAGER");
         verify(userRepository).save(argThat(u ->
@@ -447,7 +444,7 @@ class AuthServiceTest {
         when(userRepository.save(any(User.class)))
                 .thenReturn(activeUser);
 
-        String result = authService.promoteRole(request);
+        String result = authService.promoteRole(request, "admin@company.com");
 
         assertThat(result).contains("ADMIN");
         verify(userRepository).save(argThat(u ->
@@ -464,7 +461,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("john@company.com"))
                 .thenReturn(Optional.of(activeUser));
 
-        assertThatThrownBy(() -> authService.promoteRole(request))
+        assertThatThrownBy(() -> authService.promoteRole(request, "admin@company.com"))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Invalid role");
     }
@@ -479,7 +476,7 @@ class AuthServiceTest {
         when(userRepository.findByEmail("nobody@company.com"))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> authService.promoteRole(request))
+        assertThatThrownBy(() -> authService.promoteRole(request, "admin@company.com"))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("User not found");
     }

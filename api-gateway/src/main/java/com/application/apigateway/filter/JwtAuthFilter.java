@@ -10,6 +10,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -21,75 +22,74 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-/**
- * JWT AUTH FILTER — Compatible with JJWT 0.11.x AND 0.12.x
- *
- * Uses GlobalFilter with a public path whitelist.
- * No JwtAuthFilterFactory needed.
- */
 @Component
 public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    // Public paths — no token required
     private static final List<String> PUBLIC_PATHS = List.of(
             "/auth/login",
             "/auth/register",
             "/auth/forgot-password",
             "/auth/validate",
-
-            // Swagger UI paths for all services
-            "/auth/v3/api-docs",
-            "/auth/swagger-ui",
-            "/admin/v3/api-docs",
-            "/admin/swagger-ui",
-            "/timesheet/v3/api-docs",
-            "/timesheet/swagger-ui",
-            "/leave/v3/api-docs",
-            "/leave/swagger-ui",
-            "/notification/v3/api-docs",
-            "/notification/swagger-ui",
             "/v3/api-docs",
             "/swagger-ui",
-            "/swagger-ui.html"
-    );
+            "/swagger-ui.html",
+            "/auth/v3/api-docs",
+            "/timesheet/v3/api-docs",
+            "/leave/v3/api-docs",
+            "/admin/v3/api-docs");
 
     @Override
     public int getOrder() {
-        return -1;
+        return -2;
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange,
-                             GatewayFilterChain chain) {
+            GatewayFilterChain chain) {
 
-        String requestPath = exchange.getRequest()
-                                     .getURI()
-                                     .getPath();
+        ServerHttpRequest request = exchange.getRequest();
+        ServerHttpResponse response = exchange.getResponse();
+        String path = request.getURI().getPath();
 
-        // Skip JWT check for public paths
+        // ── Step 1: Allow OPTIONS preflight requests ──────────────────────
+        // Browser sends OPTIONS before every real request to check CORS.
+        // If we block it here, CORS headers never reach the browser.
+        if (HttpMethod.OPTIONS.equals(request.getMethod())) {
+            return chain.filter(exchange);
+        }
+
+        // ── Step 2: Allow public paths without token ──────────────────────
+        String pathToCheck = path;
+        if (pathToCheck.startsWith("/gateway")) {
+            pathToCheck = pathToCheck.substring(8);
+        }
+
         boolean isPublic = PUBLIC_PATHS.stream()
-                .anyMatch(requestPath::startsWith);
+                .anyMatch(pathToCheck::startsWith);
 
         if (isPublic) {
             return chain.filter(exchange);
         }
 
-        // Protected path — check token
-        ServerHttpRequest request = exchange.getRequest();
-
+        // ── Step 3: Validate JWT for protected paths ──────────────────────
         if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-            return rejectRequest(exchange, "Authorization header is missing");
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            response.getHeaders().add("X-Auth-Error",
+                    "Authorization header is missing");
+            return response.setComplete();
         }
 
         String authHeader = request.getHeaders()
-                                   .getFirst(HttpHeaders.AUTHORIZATION);
+                .getFirst(HttpHeaders.AUTHORIZATION);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return rejectRequest(exchange,
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            response.getHeaders().add("X-Auth-Error",
                     "Authorization header must start with Bearer");
+            return response.setComplete();
         }
 
         String token = authHeader.substring(7);
@@ -106,42 +106,33 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                     .build();
 
             return chain.filter(
-                    exchange.mutate().request(modifiedRequest).build());
+                    exchange.mutate()
+                            .request(modifiedRequest)
+                            .build());
 
         } catch (ExpiredJwtException e) {
-            return rejectRequest(exchange, "JWT token has expired");
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            response.getHeaders().add("X-Auth-Error", "Token expired");
+            return response.setComplete();
         } catch (JwtException e) {
-            return rejectRequest(exchange, "JWT token is invalid");
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            response.getHeaders().add("X-Auth-Error", "Token invalid");
+            return response.setComplete();
         } catch (Exception e) {
-            return rejectRequest(exchange, "JWT token validation failed");
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            response.getHeaders().add("X-Auth-Error",
+                    "Token validation failed");
+            return response.setComplete();
         }
     }
 
     private Claims extractClaims(String token) {
-
-        SecretKey signingKey = Keys.hmacShaKeyFor(
+        SecretKey key = Keys.hmacShaKeyFor(
                 jwtSecret.getBytes(StandardCharsets.UTF_8));
-
-        // ── JJWT 0.12.x API ──────────────────────────────────
         return Jwts.parser()
-                   .verifyWith(signingKey)
-                   .build()
-                   .parseSignedClaims(token)
-                   .getPayload();
-
-        // ── JJWT 0.11.x API (old — use this if you downgrade) ─
-        // return Jwts.parserBuilder()
-        //            .setSigningKey(signingKey)
-        //            .build()
-        //            .parseClaimsJws(token)
-        //            .getBody();
-    }
-
-    private Mono<Void> rejectRequest(ServerWebExchange exchange,
-                                      String reason) {
-        ServerHttpResponse response = exchange.getResponse();
-        response.setStatusCode(HttpStatus.UNAUTHORIZED);
-        response.getHeaders().add("X-Auth-Error", reason);
-        return response.setComplete();
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

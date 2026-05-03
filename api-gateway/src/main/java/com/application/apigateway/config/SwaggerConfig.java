@@ -1,5 +1,7 @@
 package com.application.apigateway.config;
 
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.properties.AbstractSwaggerUiConfigProperties.SwaggerUrl;
 import org.springdoc.core.properties.SwaggerUiConfigProperties;
 import org.springframework.context.annotation.Bean;
@@ -7,17 +9,22 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
  * Swagger Aggregator for Spring Cloud Gateway (WebFlux).
- *
- * Each downstream service exposes its own /v3/api-docs at a prefixed path.
- * The gateway proxies those paths through its routes, so Swagger UI can
- * fetch them all from the single gateway origin (localhost:8080).
  */
 @Configuration
 public class SwaggerConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+                .servers(List.of(
+                        new Server().url("/gateway").description("Default Gateway Server")
+                ));
+    }
 
     @Bean
     @Primary
@@ -25,14 +32,13 @@ public class SwaggerConfig {
 
         SwaggerUiConfigProperties config = new SwaggerUiConfigProperties();
         config.setDisplayRequestDuration(true);
-        config.setDisplayOperationId(false);
 
         Set<SwaggerUrl> urls = new LinkedHashSet<>();
 
-        urls.add(swaggerUrl("Auth Service",         "/auth/v3/api-docs"));
-        urls.add(swaggerUrl("Timesheet Service",    "/timesheet/v3/api-docs"));
-        urls.add(swaggerUrl("Leave Service",        "/leave/v3/api-docs"));
-        urls.add(swaggerUrl("Admin Service",        "/admin/v3/api-docs"));
+        urls.add(swaggerUrl("Auth Service",         "/gateway/auth/v3/api-docs"));
+        urls.add(swaggerUrl("Timesheet Service",    "/gateway/timesheet/v3/api-docs"));
+        urls.add(swaggerUrl("Leave Service",        "/gateway/leave/v3/api-docs"));
+        urls.add(swaggerUrl("Admin Service",        "/gateway/admin/v3/api-docs"));
 
         config.setUrls(urls);
         return config;

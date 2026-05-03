@@ -143,9 +143,10 @@ class LeaveControllerTest {
     @DisplayName("GET /leave/admin/pending — success")
     void getPendingLeaves_Success() throws Exception {
         LeaveResponse pending = LeaveResponse.builder().id(102L).build();
-        when(leaveService.getAllSubmittedLeaves()).thenReturn(List.of(pending));
+        when(leaveService.getAllSubmittedLeaves(anyLong())).thenReturn(List.of(pending));
 
-        mockMvc.perform(get("/leave/admin/pending"))
+        mockMvc.perform(get("/leave/admin/pending")
+                .header("X-User-Id", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(102L));
     }

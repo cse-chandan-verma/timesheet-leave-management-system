@@ -4,37 +4,67 @@ server:
 spring:
   application:
     name: api-gateway
-  config:
-    import: optional:file:../.env[.properties]
 
   cloud:
     gateway:
+      cors-configurations:
+        '[/**]':
+          allowedOrigins:
+            - "*"
+          allowedMethods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+            - PATCH
+          allowedHeaders: "*"
+          exposedHeaders:
+            - Authorization
+            - X-User-Email
+            - X-User-Role
+            - X-Auth-Error
+          allowCredentials: true
+          maxAge: 3600
+
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
       routes:
-        # ── Business routes ────────────────────────────────────────────
         - id: auth-service
           uri: lb://auth-service
           predicates:
-            - Path=/auth/**
+            - Path=/gateway/auth/**
+          filters:
+            - StripPrefix=1
 
         - id: timesheet-service
           uri: lb://timesheet-service
           predicates:
-            - Path=/timesheet/**
+            - Path=/gateway/timesheet/**
+          filters:
+            - StripPrefix=1
 
         - id: leave-service
           uri: lb://leave-service
           predicates:
-            - Path=/leave/**
+            - Path=/gateway/leave/**
+          filters:
+            - StripPrefix=1
 
         - id: admin-service
           uri: lb://admin-service
           predicates:
-            - Path=/admin/**
+            - Path=/gateway/admin/**
+          filters:
+            - StripPrefix=1
 
         - id: notification-service
           uri: lb://notification-service
           predicates:
-            - Path=/notification/**
+            - Path=/gateway/notification/**
+          filters:
+            - StripPrefix=1
 
 eureka:
   instance:
@@ -47,29 +77,26 @@ eureka:
     fetch-registry: true
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: tms-super-secret-key-must-be-at-least-256-bits-long-for-hmac!!
 
-# ── Swagger aggregation ────────────────────────────────────────────────
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
-    # Tell Swagger UI to call each service's /v3/api-docs through the gateway
     urls:
       - name: Auth Service
-        url: /auth/v3/api-docs
+        url: /gateway/auth/v3/api-docs
       - name: Timesheet Service
-        url: /timesheet/v3/api-docs
+        url: /gateway/timesheet/v3/api-docs
       - name: Leave Service
-        url: /leave/v3/api-docs
+        url: /gateway/leave/v3/api-docs
       - name: Admin Service
-        url: /admin/v3/api-docs
+        url: /gateway/admin/v3/api-docs
     urls-primary-name: Auth Service
     disable-swagger-default-url: true
     display-request-duration: true
   api-docs:
     enabled: true
     path: /v3/api-docs
-  # Required for WebFlux gateway — use reactive
   use-management-port: false
 
 logging:
@@ -78,16 +105,10 @@ logging:
     reactor.netty: WARN
 
 management:
-  tracing:
-    sampling:
-      probability: 1.0
-  zipkin:
-    tracing:
-      endpoint: http://${ZIPKIN_HOST:localhost}:9411/api/v2/spans
   endpoints:
     web:
       exposure:
         include: "health,info,gateway"
   endpoint:
     health:
-      show-details: always
+      show-details: always

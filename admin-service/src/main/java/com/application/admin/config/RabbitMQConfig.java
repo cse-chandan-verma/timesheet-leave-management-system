@@ -24,6 +24,8 @@ public class RabbitMQConfig {
     // LeaveEventPublisher.publishLeaveApplied()           → "leave.applied"
     public static final String TIMESHEET_RK     = "timesheet.submitted";
     public static final String LEAVE_RK         = "leave.applied";
+    public static final String REGISTRATION_QUEUE = "admin.registration.events";
+    public static final String REGISTRATION_RK    = "user.registered";
 
     @Bean
     public TopicExchange tmsExchange() {
@@ -40,9 +42,13 @@ public class RabbitMQConfig {
         return new Queue(LEAVE_QUEUE, true);
     }
 
+    @Bean
+    public Queue adminRegistrationQueue() {
+        return new Queue(REGISTRATION_QUEUE, true);
+    }
+
     /**
-     * Binds timesheet.events queue to tms.exchange via routing key "timesheet.submitted".
-     * This routes the TIMESHEET_SUBMITTED events from timesheet-service to admin's audit log.
+     * Binds timesheet.events queue to tmsExchange.
      */
     @Bean
     public Binding timesheetBinding(Queue timesheetQueue, TopicExchange tmsExchange) {
@@ -52,14 +58,23 @@ public class RabbitMQConfig {
     }
 
     /**
-     * Binds leave.events queue to tms.exchange via routing key "leave.applied".
-     * This routes the LEAVE_APPLIED events from leave-service to admin's audit log.
+     * Binds leave.events queue to tmsExchange.
      */
     @Bean
     public Binding leaveBinding(Queue leaveQueue, TopicExchange tmsExchange) {
         return BindingBuilder.bind(leaveQueue)
                 .to(tmsExchange)
                 .with(LEAVE_RK);
+    }
+
+    /**
+     * Binds admin.registration.events queue to tmsExchange.
+     */
+    @Bean
+    public Binding adminRegistrationBinding(Queue adminRegistrationQueue, TopicExchange tmsExchange) {
+        return BindingBuilder.bind(adminRegistrationQueue)
+                .to(tmsExchange)
+                .with(REGISTRATION_RK);
     }
 
     @Bean

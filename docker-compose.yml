@@ -180,6 +180,19 @@ services:
     networks:
       - tms_network
 
+  tms-frontend:
+    build:
+      context: ../TMS-Frontend/tms-frontend
+      dockerfile: Dockerfile
+    container_name: tms_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - tms_network
+    restart: unless-stopped
+
 volumes:
   mysql_data:
   rabbitmq_data:

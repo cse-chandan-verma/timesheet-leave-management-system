@@ -25,4 +25,6 @@ public interface TimesheetEntryRepository extends JpaRepository<TimesheetEntry, 
 	Double sumHoursByTimesheetId(@Param("timesheetId") Long timesheetId);
 
 	List<TimesheetEntry> findByTimesheetIdAndWorkDate(Long timesheetId, LocalDate workDate);
+
+	boolean existsByProjectId(Long projectId);
 }

@@ -4,6 +4,7 @@ import com.application.leave.dto.*;
 import com.application.leave.entity.*;
 import com.application.leave.entity.LeaveRequest.LeaveStatus;
 import com.application.leave.exception.LeaveException;
+import com.application.leave.feign.AuthServiceClient;
 import com.application.leave.messaging.LeaveEventPublisher;
 import com.application.leave.repository.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +32,7 @@ class LeaveServiceTest {
     @Mock private LeaveTypeRepository leaveTypeRepo;
     @Mock private HolidayRepository holidayRepo;
     @Mock private LeaveEventPublisher eventPublisher;
+    @Mock private AuthServiceClient authServiceClient;
 
     @InjectMocks
     private LeaveService leaveService;
@@ -408,12 +410,15 @@ class LeaveServiceTest {
     }
 
     @Test
-    @DisplayName("getAllSubmittedLeaves — returns SUBMITTED leaves")
+    @DisplayName("getAllSubmittedLeaves — returns SUBMITTED leaves for manager's team")
     void getAllSubmittedLeaves_returnsList() {
-        when(leaveRequestRepo.findByStatus(LeaveStatus.SUBMITTED))
+        Long managerId = 99L;
+        when(authServiceClient.getTeamEmployeeIds(managerId))
+                .thenReturn(List.of(EMP_ID));
+        when(leaveRequestRepo.findByEmployeeIdInAndStatus(List.of(EMP_ID), LeaveStatus.SUBMITTED))
                 .thenReturn(List.of(savedLeaveRequest));
 
-        List<LeaveResponse> result = leaveService.getAllSubmittedLeaves();
+        List<LeaveResponse> result = leaveService.getAllSubmittedLeaves(managerId);
 
         assertThat(result).hasSize(1);
     }

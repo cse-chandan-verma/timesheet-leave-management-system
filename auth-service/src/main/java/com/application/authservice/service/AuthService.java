@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -66,13 +67,16 @@ public class AuthService {
                 .fullName(request.getFullName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(User.Role.EMPLOYEE)  // ← hardcoded always
-                .isActive(true)
+                .role(User.Role.EMPLOYEE)
                 .build();
 
+        // Auto-assign the first ADMIN as default manager
+        userRepository.findFirstByRoleOrderByIdAsc(User.Role.ADMIN)
+                .ifPresent(admin -> user.setManagerId(admin.getId()));
+
         User savedUser = userRepository.save(user);
-        log.info("New user registered: {} as EMPLOYEE",
-                savedUser.getEmail());
+        log.info("New user registered: {} as EMPLOYEE, managerId={}",
+                savedUser.getEmail(), savedUser.getManagerId());
 
         publishUserRegisteredEvent(savedUser);
         return "Registration successful. Welcome, "
@@ -98,9 +102,9 @@ public class AuthService {
         }
 
         User user = userRepository
-                .findByEmailAndIsActiveTrue(request.getEmail())
+                .findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException(
-                        "User not found or account inactive"));
+                        "User not found"));
 
         String token = jwtUtil.generateToken(user);
 
@@ -200,24 +204,98 @@ public class AuthService {
     }
 
     private UserResponseDto mapToDto(User user) {
+        String managerName = null;
+        if (user.getManagerId() != null) {
+            managerName = userRepository.findById(user.getManagerId())
+                    .map(User::getFullName).orElse(null);
+        }
         return UserResponseDto.builder()
                 .id(user.getId())
-                .name(user.getFullName())
+                .employeeCode(user.getEmployeeCode())
+                .fullName(user.getFullName())
                 .email(user.getEmail())
                 .role(user.getRole().name())
+                .managerId(user.getManagerId())
+                .managerName(managerName)
                 .build();
+    }
+
+    // ASSIGN MANAGER — ADMIN ONLY
+    @Transactional
+    public String assignManager(AssignManagerRequest request) {
+        User employee = userRepository.findByEmail(request.getEmployeeEmail())
+                .orElseThrow(() -> new RuntimeException(
+                        "Employee not found: " + request.getEmployeeEmail()));
+
+        User manager = userRepository.findById(request.getManagerId())
+                .orElseThrow(() -> new RuntimeException(
+                        "Manager not found with ID: " + request.getManagerId()));
+
+        if (manager.getRole() != User.Role.MANAGER && manager.getRole() != User.Role.ADMIN) {
+            throw new RuntimeException(
+                    "User '" + manager.getFullName() + "' is not a MANAGER or ADMIN.");
+        }
+
+        if (employee.getRole() == User.Role.ADMIN) {
+            throw new RuntimeException("Cannot assign a manager to an ADMIN user.");
+        }
+
+        if (employee.getRole() == User.Role.MANAGER) {
+            throw new RuntimeException("Cannot assign a manager to another MANAGER.");
+        }
+
+        employee.setManagerId(manager.getId());
+        userRepository.save(employee);
+
+        log.info("Manager assigned: employee={}, manager={}",
+                employee.getEmail(), manager.getEmail());
+
+        return employee.getFullName() + " has been assigned to manager: " + manager.getFullName();
+    }
+
+    // GET MY TEAM — MANAGER
+    public List<UserResponseDto> getMyTeam(String managerEmail) {
+        User manager = userRepository.findByEmail(managerEmail)
+                .orElseThrow(() -> new RuntimeException("Manager not found"));
+
+        return userRepository.findByManagerId(manager.getId())
+                .stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
+
+    // GET TEAM EMPLOYEE IDs — INTERNAL (no JWT, service-to-service)
+    public List<Long> getTeamEmployeeIds(Long managerId) {
+        return userRepository.findByManagerId(managerId)
+                .stream()
+                .map(User::getId)
+                .collect(Collectors.toList());
+    }
+
+    // GET ALL MANAGERS — for admin assign-manager dropdown (MANAGER role only)
+    public List<UserResponseDto> getAllManagers() {
+        return userRepository.findAll().stream()
+                .filter(u -> u.getRole() == User.Role.MANAGER)
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
     }
     // 5. PROMOTE ROLE — ADMIN ONLY
 
     
     @Transactional
-    public String promoteRole(PromoteRoleRequest request) {
+    public String promoteRole(PromoteRoleRequest request, String callerEmail) {
 
         User user = userRepository
                 .findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException(
                         "User not found with email: "
                         + request.getEmail()));
+
+        // Prevent admin from demoting themselves
+        if (user.getEmail().equalsIgnoreCase(callerEmail)) {
+            throw new RuntimeException(
+                    "You cannot change your own role.");
+        }
 
         // Convert string to enum
         User.Role newRole;
@@ -272,15 +350,26 @@ public class AuthService {
     // PRIVATE HELPERS
 
     private UserProfileResponse mapToProfileResponse(User user) {
+        String managerName = null;
+        String managerEmail = null;
+        if (user.getManagerId() != null) {
+            User manager = userRepository.findById(user.getManagerId()).orElse(null);
+            if (manager != null) {
+                managerName  = manager.getFullName();
+                managerEmail = manager.getEmail();
+            }
+        }
         return UserProfileResponse.builder()
                 .id(user.getId())
                 .employeeCode(user.getEmployeeCode())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .role(user.getRole().name())
-                .isActive(user.isActive())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
+                .managerId(user.getManagerId())
+                .managerName(managerName)
+                .managerEmail(managerEmail)
                 .build();
     }
     

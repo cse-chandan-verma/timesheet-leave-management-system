@@ -187,9 +187,10 @@ class TimesheetControllerTest {
     @DisplayName("GET /timesheet/admin/submitted — success")
     void getSubmittedTimesheets_Success() throws Exception {
         WeeklyTimesheetResponse submitted = WeeklyTimesheetResponse.builder().timesheetId(300L).build();
-        when(timesheetService.getSubmittedTimesheets()).thenReturn(List.of(submitted));
+        when(timesheetService.getSubmittedTimesheets(anyLong())).thenReturn(List.of(submitted));
 
-        mockMvc.perform(get("/timesheet/admin/submitted"))
+        mockMvc.perform(get("/timesheet/admin/submitted")
+                .header("X-User-Id", 123L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].timesheetId").value(300L));
     }

@@ -60,4 +60,21 @@ public class NotificationConsumer {
         notificationRepository.save(notification);
         log.debug("Saved AdminNotification for leave application.");
     }
+
+    /**
+     * Handles new user registrations.
+     */
+    @RabbitListener(queues = RabbitMQConfig.REGISTRATION_QUEUE)
+    public void handleRegistrationEvent(Map<String, Object> event) {
+        log.info("Received REGISTRATION event from queue: {}", event);
+        
+        AdminNotification notification = new AdminNotification();
+        notification.setEventType("USER_REGISTERED");
+        notification.setUserEmail(String.valueOf(event.getOrDefault("email", "unknown@system")));
+        notification.setMessage("New user registered: " + event.getOrDefault("fullName", "User"));
+        notification.setStatus("REGISTERED");
+        
+        notificationRepository.save(notification);
+        log.debug("Saved AdminNotification for user registration.");
+    }
 }

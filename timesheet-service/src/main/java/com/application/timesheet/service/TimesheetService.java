@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.application.timesheet.dto.ApproveRejectRequest;
+import com.application.timesheet.dto.CreateProjectRequest;
 import com.application.timesheet.dto.ProjectResponse;
 import com.application.timesheet.dto.SubmitTimesheetRequest;
 import com.application.timesheet.dto.TimesheetEntryRequest;
@@ -18,6 +19,7 @@ import com.application.timesheet.entity.Timesheet.TimesheetStatus;
 import com.application.timesheet.entity.TimesheetEntry;
 import com.application.timesheet.exception.TimesheetException;
 import com.application.timesheet.messaging.TimesheetEventPublisher;
+import com.application.timesheet.feign.AuthServiceClient;
 import com.application.timesheet.repository.ProjectRepository;
 import com.application.timesheet.repository.TimesheetEntryRepository;
 import com.application.timesheet.repository.TimesheetRepository;
@@ -37,6 +39,7 @@ public class TimesheetService {
 	private final TimesheetEntryRepository entryRepo;
 	private final ProjectRepository projectRepo;
 	private final TimesheetEventPublisher eventPublisher;
+	private final AuthServiceClient authServiceClient;
 
 	// Max hours allowed per week
 	private static final double MAX_WEEKLY_HOURS = 60.0;
@@ -339,8 +342,13 @@ public class TimesheetService {
 
 	// ADMIN / MANAGER OPERATIONS
 
-	public List<WeeklyTimesheetResponse> getSubmittedTimesheets() {
-		return timesheetRepo.findByStatus(TimesheetStatus.SUBMITTED).stream()
+	// MANAGER: GET SUBMITTED TIMESHEETS FOR OWN TEAM ONLY
+	public List<WeeklyTimesheetResponse> getSubmittedTimesheets(Long managerId) {
+		List<Long> teamEmployeeIds = authServiceClient.getTeamEmployeeIds(managerId);
+		if (teamEmployeeIds.isEmpty())
+			return List.of();
+		return timesheetRepo.findByEmployeeIdInAndStatus(teamEmployeeIds, TimesheetStatus.SUBMITTED)
+				.stream()
 				.map(ts -> {
 					List<TimesheetEntry> entries = entryRepo.findByTimesheetId(ts.getId());
 					return mapToWeeklyResponse(ts, entries);
@@ -414,6 +422,49 @@ public class TimesheetService {
 				timesheet.getWeekStartDate());
 
 		return "Timesheet ID " + timesheetId + " has been rejected.";
+	}
+
+	@Transactional
+	public ProjectResponse createProject(CreateProjectRequest request) {
+		if (projectRepo.existsByProjectCode(request.getProjectCode())) {
+			throw new TimesheetException("Project code already exists: " + request.getProjectCode());
+		}
+
+		Project project = Project.builder()
+				.projectCode(request.getProjectCode())
+				.projectName(request.getProjectName())
+				.isActive(true)
+				.build();
+
+		Project saved = projectRepo.save(project);
+		log.info("New project created: {} ({})", saved.getProjectName(), saved.getProjectCode());
+
+		return ProjectResponse.builder()
+				.id(saved.getId())
+				.projectCode(saved.getProjectCode())
+				.projectName(saved.getProjectName())
+				.build();
+	}
+
+	@Transactional
+	public String deleteProject(Long projectId) {
+		Project project = projectRepo.findById(projectId)
+				.orElseThrow(() -> new TimesheetException(
+						"Project not found with ID: " + projectId));
+
+		// If project has timesheet entries, we cannot delete it due to FK constraints
+		// Instead, we deactivate it so it doesn't show up in active project lists
+		if (entryRepo.existsByProjectId(projectId)) {
+			project.setActive(false);
+			projectRepo.save(project);
+			log.info("Project deactivated (soft delete) because it has entries: {} ({})",
+					project.getProjectName(), project.getProjectCode());
+			return "Project '" + project.getProjectName() + "' has been deactivated as it contains work entries.";
+		}
+
+		projectRepo.delete(project);
+		log.info("Project hard deleted: {} ({})", project.getProjectName(), project.getProjectCode());
+		return "Project '" + project.getProjectName() + "' deleted successfully.";
 	}
 
 	// PRIVATE HELPERS

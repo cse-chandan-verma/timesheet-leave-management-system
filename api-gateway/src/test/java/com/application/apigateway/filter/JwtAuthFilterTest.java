@@ -198,8 +198,8 @@ class JwtAuthFilterTest {
     }
     
     @Test
-    @DisplayName("getOrder() returns -1 (highest priority)")
-    void getOrder_returnsMinusOne() {
-        assert filter.getOrder() == -1;
+    @DisplayName("getOrder() returns -2 (highest priority)")
+    void getOrder_returnsMinusTwo() {
+        assert filter.getOrder() == -2;
     }
 }

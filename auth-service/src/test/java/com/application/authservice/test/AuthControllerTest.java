@@ -94,7 +94,8 @@ class AuthControllerTest {
         when(authService.getProfile("test@test.com"))
                 .thenReturn(response);
 
-        mockMvc.perform(get("/auth/profile"))
+        mockMvc.perform(get("/auth/profile")
+                .header("X-User-Email", "test@test.com"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("test@test.com"));
     }
@@ -114,6 +115,7 @@ class AuthControllerTest {
                 .thenReturn(response);
 
         mockMvc.perform(put("/auth/profile")
+                .header("X-User-Email", "test@test.com")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -127,10 +129,11 @@ class AuthControllerTest {
         request.setEmail("user@test.com");
         request.setRole("MANAGER");
 
-        when(authService.promoteRole(any(PromoteRoleRequest.class)))
+        when(authService.promoteRole(any(PromoteRoleRequest.class), anyString()))
                 .thenReturn("Role updated successfully");
 
         mockMvc.perform(put("/auth/admin/promote")
+                .header("X-User-Email", "admin@test.com")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())

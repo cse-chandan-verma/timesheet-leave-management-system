@@ -22,6 +22,11 @@ spring:
         format-sql: true
         dialect: org.hibernate.dialect.MySQLDialect
 
+  sql:
+    init:
+      mode: always
+      data-locations: classpath:data.sql
+
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -51,6 +56,11 @@ springdoc:
     path: /auth/v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.application.authservice: DEBUG
 
 management:
   tracing:

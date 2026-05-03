@@ -21,6 +21,9 @@ public interface LeaveRequestRepository
     // All requests of a given status (used for manager approval queue)
     List<LeaveRequest> findByStatus(LeaveStatus status);
 
+    // Manager's team pending leaves — filter by employeeIds + status
+    List<LeaveRequest> findByEmployeeIdInAndStatus(List<Long> employeeIds, LeaveStatus status);
+
     // Employee's requests filtered by status
     List<LeaveRequest> findByEmployeeIdAndStatus(Long employeeId, LeaveStatus status);
 

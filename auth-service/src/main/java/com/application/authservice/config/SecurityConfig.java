@@ -4,6 +4,7 @@ import com.application.authservice.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -35,21 +36,38 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http)
             throws Exception {
         http
+            // ── Disable CSRF — stateless JWT, no session cookies ────────
             .csrf(AbstractHttpConfigurer::disable)
+
+            // ── Disable CORS in auth-service — gateway handles CORS ──────
+            // auth-service is ONLY accessed via the API Gateway (internal).
+            // CORS negotiation happens at the gateway level with the browser.
+            // Enabling Spring Security CORS here causes 403 on forwarded reqs.
+            .cors(AbstractHttpConfigurer::disable)
+
+            // ── Disable httpBasic — we use JWT only ──────────────────────
+            .httpBasic(AbstractHttpConfigurer::disable)
+
+            // ── Stateless session — no HttpSession ever created ──────────
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
             .authorizeHttpRequests(auth -> auth
 
-                // ── Public endpoints — no token needed ──────────
+                // ── Allow OPTIONS preflight (forwarded by gateway) ───────
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                // ── Public endpoints — no token needed ──────────────────
                 .requestMatchers(
                     "/auth/login",
                     "/auth/register",
                     "/auth/forgot-password"
-                    // NOTE: /auth/admin/promote is NOT here
-                    // It requires ADMIN role — enforced by @PreAuthorize
                 ).permitAll()
 
-                // ── Swagger UI — public for development ─────────
+                // ── Internal service-to-service endpoint — no JWT ────────
+                .requestMatchers("/auth/internal/**").permitAll()
+
+                // ── Swagger UI — public for development ─────────────────
                 .requestMatchers(
                     "/v3/api-docs/**",
                     "/v3/api-docs",
@@ -60,11 +78,11 @@ public class SecurityConfig {
                     "/webjars/**"
                 ).permitAll()
 
-                // ── Actuator health ──────────────────────────────
+                // ── Actuator health ──────────────────────────────────────
                 .requestMatchers("/actuator/health").permitAll()
 
-                // ── Everything else requires valid JWT ───────────
-                // Fine-grained role checks done by @PreAuthorize
+                // ── Everything else requires valid JWT ───────────────────
+                // Fine-grained role checks are done by @PreAuthorize
                 // on each method in the controller
                 .anyRequest().authenticated()
             )

@@ -10,6 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import com.application.timesheet.dto.ApproveRejectRequest;
+import com.application.timesheet.dto.CreateProjectRequest;
 import com.application.timesheet.dto.ProjectResponse;
 import com.application.timesheet.dto.SubmitTimesheetRequest;
 import com.application.timesheet.dto.TimesheetEntryRequest;
@@ -121,15 +122,16 @@ public class TimesheetController {
     // ── Admin / Manager: Approval Workflow ───────────────────────────────────
 
     @GetMapping("/admin/submitted")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Get Submitted Timesheets(MANAGER,ADMIN)", description = "Fetch every timesheet currently pending review (status = SUBMITTED).")
-    public ResponseEntity<List<WeeklyTimesheetResponse>> getSubmittedTimesheets() {
-        return ResponseEntity.ok(timesheetService.getSubmittedTimesheets());
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(summary = "Get Submitted Timesheets(MANAGER only)", description = "Fetch timesheets pending review for the calling manager's team only.")
+    public ResponseEntity<List<WeeklyTimesheetResponse>> getSubmittedTimesheets(
+            @RequestHeader("X-User-Id") Long managerId) {
+        return ResponseEntity.ok(timesheetService.getSubmittedTimesheets(managerId));
     }
 
     @PutMapping("/admin/approve/{timesheetId}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Approve Timesheet(ADMIN, MANAGER)", description = "Approve a submitted timesheet. An optional comment can be added.")
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(summary = "Approve Timesheet(MANAGER only)", description = "Approve a submitted timesheet from the manager's own team.")
     public ResponseEntity<String> approveTimesheet(
             @PathVariable Long timesheetId,
             @Valid @RequestBody ApproveRejectRequest request) {
@@ -138,12 +140,31 @@ public class TimesheetController {
     }
 
     @PutMapping("/admin/reject/{timesheetId}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-    @Operation(summary = "Reject Timesheet(MANAGER,ADMIN)", description = "Reject a submitted timesheet with a mandatory comment explaining the reason for rejection.")
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(summary = "Reject Timesheet(MANAGER only)", description = "Reject a submitted timesheet from the manager's own team.")
     public ResponseEntity<String> rejectTimesheet(
             @PathVariable Long timesheetId,
             @Valid @RequestBody ApproveRejectRequest request) {
 
         return ResponseEntity.ok(timesheetService.rejectTimesheet(timesheetId, request));
+    }
+
+    @PostMapping("/admin/projects")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @Operation(summary = "Create Project(MANAGER,ADMIN)", description = "Register a new project in the system. Project code must be unique.")
+    public ResponseEntity<ProjectResponse> createProject(
+            @Valid @RequestBody CreateProjectRequest request) {
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(timesheetService.createProject(request));
+    }
+
+    @DeleteMapping("/admin/projects/{projectId}")
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(summary = "Delete Project(MANAGER)", description = "Delete a project by ID. Only MANAGER can delete projects.")
+    public ResponseEntity<String> deleteProject(
+            @PathVariable Long projectId) {
+
+        return ResponseEntity.ok(timesheetService.deleteProject(projectId));
     }
 }

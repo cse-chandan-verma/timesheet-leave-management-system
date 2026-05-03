@@ -71,9 +71,10 @@ public class AuthController {
     @Operation(summary = "Promote user role (Admin only)", description = "Only ADMIN can promote a user to MANAGER or ADMIN. "
             + "User must re-login after promotion for new role to apply.")
     public ResponseEntity<String> promoteRole(
+            @RequestHeader("X-User-Email") String callerEmail,
             @Valid @RequestBody PromoteRoleRequest request) {
 
-        return ResponseEntity.ok(authService.promoteRole(request));
+        return ResponseEntity.ok(authService.promoteRole(request, callerEmail));
     }
 
     @PostMapping("/forgot-password")
@@ -86,17 +87,47 @@ public class AuthController {
 
     @GetMapping("/users")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
-    @Operation(summary = "Get all users (Admin/Manager only)", description = "Only Admin and Manager have the access to see all the users")
+    @Operation(summary = "Get all users (Admin/Manager only)")
     public ResponseEntity<List<UserResponseDto>> getAllUsers() {
         return ResponseEntity.ok(authService.getAllUsers());
     }
 
     @GetMapping("/admin/user/{email}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Get any user's profile (Admin only)", description = "Admin can look up any employee's profile by email")
+    @Operation(summary = "Get any user's profile (Admin only)")
     public ResponseEntity<UserProfileResponse> getUserProfile(
             @PathVariable String email) {
-
         return ResponseEntity.ok(authService.getProfile(email));
+    }
+
+    @PutMapping("/admin/assign-manager")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Assign manager to employee (Admin only)", description = "Admin assigns or reassigns a manager to an employee. "
+            + "Default manager is the first ADMIN until reassigned.")
+    public ResponseEntity<String> assignManager(
+            @Valid @RequestBody AssignManagerRequest request) {
+        return ResponseEntity.ok(authService.assignManager(request));
+    }
+
+    @GetMapping("/manager/my-team")
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(summary = "Get manager's team (Manager only)", description = "Returns all employees assigned to the calling manager.")
+    public ResponseEntity<List<UserResponseDto>> getMyTeam(
+            @RequestHeader("X-User-Email") String managerEmail) {
+        return ResponseEntity.ok(authService.getMyTeam(managerEmail));
+    }
+
+    @GetMapping("/admin/managers")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get all managers (Admin only)", description = "Returns all users with MANAGER or ADMIN role for assign-manager dropdown.")
+    public ResponseEntity<List<UserResponseDto>> getAllManagers() {
+        return ResponseEntity.ok(authService.getAllManagers());
+    }
+
+    @GetMapping("/internal/manager/{managerId}/employee-ids")
+    @Operation(summary = "Internal: get employee IDs for a manager (no auth)", description = "Used by timesheet-service and leave-service internally. Not for frontend.")
+    public ResponseEntity<List<Long>> getTeamEmployeeIds(
+            @PathVariable Long managerId) {
+        return ResponseEntity.ok(authService.getTeamEmployeeIds(managerId));
     }
 }

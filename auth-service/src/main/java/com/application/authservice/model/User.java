@@ -4,13 +4,12 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Getter
-@Setter
 @Table(
     name = "users",
     uniqueConstraints = {
@@ -38,17 +37,21 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role = Role.EMPLOYEE;
-
-    @Column(name = "is_active", nullable = false)
     @Builder.Default
-    private boolean isActive = true;
+    private Role role = Role.EMPLOYEE;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "manager_id")
+    private Long managerId;
+
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
 
     @PrePersist
     protected void onCreate() {
@@ -66,5 +69,4 @@ public class User {
         MANAGER,
         ADMIN
     }
-
 }
