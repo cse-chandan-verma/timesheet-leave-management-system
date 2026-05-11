@@ -6,6 +6,7 @@ import com.application.timesheet.entity.Timesheet.TimesheetStatus;
 import com.application.timesheet.exception.TimesheetException;
 import com.application.timesheet.messaging.TimesheetEventPublisher;
 import com.application.timesheet.repository.*;
+import com.application.timesheet.feign.AuthServiceClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +34,9 @@ class TimesheetServiceTest {
 
     @Mock
     private TimesheetEventPublisher eventPublisher;
+
+    @Mock
+    private AuthServiceClient authServiceClient;
 
     @InjectMocks
     private TimesheetService service;
@@ -67,7 +71,7 @@ class TimesheetServiceTest {
                 .build();
     }
 
-    // ===================== ADD ENTRY =====================
+    // Add Entry
 
     @Test
     void addEntry_success() {
@@ -126,7 +130,7 @@ class TimesheetServiceTest {
                 () -> service.addEntry(101L, "Chandan", request));
     }
 
-    // ===================== UPDATE ENTRY =====================
+    // Update Entry
 
     @Test
     void updateEntry_success() {
@@ -151,7 +155,7 @@ class TimesheetServiceTest {
                 () -> service.updateEntry(1L, 999L, new UpdateEntryRequest()));
     }
 
-    // ===================== DELETE ENTRY =====================
+    // Delete Entry
 
     @Test
     void deleteEntry_success() {
@@ -163,7 +167,7 @@ class TimesheetServiceTest {
         verify(entryRepo).delete(entry);
     }
 
-    // ===================== SUBMIT TIMESHEET =====================
+    // Submit Timesheet
 
     @Test
     void submitTimesheet_success() {
@@ -200,7 +204,7 @@ class TimesheetServiceTest {
                 () -> service.submitTimesheet(101L, "email@test.com", request));
     }
 
-    // ===================== APPROVE =====================
+    // Approve
 
     @Test
     void approveTimesheet_success() {
@@ -214,7 +218,7 @@ class TimesheetServiceTest {
         assertNotNull(service.approveTimesheet(1L, req));
     }
 
-    // ===================== REJECT =====================
+    // Reject
 
     @Test
     void rejectTimesheet_noComment() {
@@ -226,5 +230,82 @@ class TimesheetServiceTest {
 
         assertThrows(TimesheetException.class,
                 () -> service.rejectTimesheet(1L, req));
+    }
+
+    // Recall
+
+    @Test
+    void recallTimesheet_success() {
+        timesheet.setStatus(TimesheetStatus.SUBMITTED);
+        SubmitTimesheetRequest request = new SubmitTimesheetRequest();
+        request.setWeekStartDate(timesheet.getWeekStartDate());
+
+        when(timesheetRepo.findByEmployeeIdAndWeekStartDate(any(), any()))
+                .thenReturn(Optional.of(timesheet));
+
+        String result = service.recallTimesheet(101L, request);
+
+        assertEquals(TimesheetStatus.DRAFT, timesheet.getStatus());
+        assertTrue(result.contains("recalled"));
+    }
+
+    @Test
+    void recallTimesheet_invalidStatus() {
+        timesheet.setStatus(TimesheetStatus.APPROVED);
+        SubmitTimesheetRequest request = new SubmitTimesheetRequest();
+        request.setWeekStartDate(timesheet.getWeekStartDate());
+
+        when(timesheetRepo.findByEmployeeIdAndWeekStartDate(any(), any()))
+                .thenReturn(Optional.of(timesheet));
+
+        assertThrows(TimesheetException.class,
+                () -> service.recallTimesheet(101L, request));
+    }
+
+    // Project Management
+
+    @Test
+    void createProject_duplicateCode() {
+        CreateProjectRequest request = new CreateProjectRequest();
+        request.setProjectCode("PROJ1");
+
+        when(projectRepo.existsByProjectCode("PROJ1")).thenReturn(true);
+
+        assertThrows(TimesheetException.class,
+                () -> service.createProject(request));
+    }
+
+    @Test
+    void deleteProject_softDelete() {
+        when(projectRepo.findById(1L)).thenReturn(Optional.of(project));
+        when(entryRepo.existsByProjectId(1L)).thenReturn(true);
+
+        String result = service.deleteProject(1L);
+
+        assertFalse(project.isActive());
+        assertTrue(result.contains("deactivated"));
+        verify(projectRepo, never()).delete(any());
+    }
+
+    @Test
+    void deleteProject_hardDelete() {
+        when(projectRepo.findById(1L)).thenReturn(Optional.of(project));
+        when(entryRepo.existsByProjectId(1L)).thenReturn(false);
+
+        String result = service.deleteProject(1L);
+
+        assertTrue(result.contains("deleted successfully"));
+        verify(projectRepo).delete(project);
+    }
+
+    // Manager Views
+
+    @Test
+    void getSubmittedTimesheets_emptyTeam() {
+        when(authServiceClient.getTeamEmployeeIds(1L)).thenReturn(Collections.emptyList());
+
+        List<WeeklyTimesheetResponse> result = service.getSubmittedTimesheets(1L);
+
+        assertTrue(result.isEmpty());
     }
 }

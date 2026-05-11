@@ -402,8 +402,7 @@ public class LeaveService {
                 return "Holiday deleted successfully.";
         }
 
-        // INITIALIZE LEAVE BALANCE FOR NEW USER
-
+        // Initialize Leave Balance
         @Transactional
         public void initializeLeaveBalance(Long employeeId) {
                 int currentYear = LocalDate.now().getYear();
@@ -450,8 +449,7 @@ public class LeaveService {
                 log.debug("Created {} balance for employee {}: {} days", code, empId, days);
         }
 
-        // PRIVATE HELPERS
-
+        // Private Helpers
         private int calculateWorkingDays(LocalDate from, LocalDate to,
                         List<LocalDate> holidays) {
                 Set<LocalDate> holidaySet = Set.copyOf(holidays);

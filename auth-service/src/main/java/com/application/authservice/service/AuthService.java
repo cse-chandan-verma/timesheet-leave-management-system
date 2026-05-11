@@ -279,9 +279,7 @@ public class AuthService {
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
-    // 5. PROMOTE ROLE — ADMIN ONLY
-
-    
+    // Promote Role
     @Transactional
     public String promoteRole(PromoteRoleRequest request, String callerEmail) {
 
@@ -347,8 +345,7 @@ public class AuthService {
     }
 
 
-    // PRIVATE HELPERS
-
+    // Private Helpers
     private UserProfileResponse mapToProfileResponse(User user) {
         String managerName = null;
         String managerEmail = null;

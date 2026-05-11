@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
@@ -36,8 +37,6 @@ class LeaveServiceTest {
 
     @InjectMocks
     private LeaveService leaveService;
-
-    // ── Shared fixtures ──────────────────────────────────────────────────────
 
     private LeaveType activeLeaveType;
     private LeaveBalance leaveBalance;
@@ -82,8 +81,6 @@ class LeaveServiceTest {
                 .build();
     }
 
-    // ── Helper to build a LeaveRequestDto ───────────────────────────────────
-
     private LeaveRequestDto dto(LocalDate from, LocalDate to) {
         LeaveRequestDto dto = new LeaveRequestDto();
         dto.setLeaveTypeId(LEAVE_TYPE_ID);
@@ -93,10 +90,7 @@ class LeaveServiceTest {
         return dto;
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // applyLeave — happy path
-    // ════════════════════════════════════════════════════════════════════════
-
+    // applyLeave tests
     @Test
     @DisplayName("applyLeave — valid request saves and returns response")
     void applyLeave_happyPath() {
@@ -120,8 +114,7 @@ class LeaveServiceTest {
         verify(eventPublisher).publishLeaveApplied(any(), any(), any(), any(), any(), anyInt(), any());
     }
 
-    // ── applyLeave — validation failures ────────────────────────────────────
-
+    // applyLeave — validation failures
     @Test
     @DisplayName("applyLeave — unknown leaveTypeId → LeaveException")
     void applyLeave_unknownLeaveType_throws() {
@@ -258,10 +251,7 @@ class LeaveServiceTest {
                 .hasMessageContaining("overlapping");
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // getLeaveById
-    // ════════════════════════════════════════════════════════════════════════
-
+    // getLeaveById tests
     @Test
     @DisplayName("getLeaveById — found and owned → returns response")
     void getLeaveById_happyPath() {
@@ -292,10 +282,7 @@ class LeaveServiceTest {
                 .hasMessageContaining("permission");
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // getLeaveBalance
-    // ════════════════════════════════════════════════════════════════════════
-
+    // getLeaveBalance tests
     @Test
     @DisplayName("getLeaveBalance — returns mapped balance list")
     void getLeaveBalance_returnsList() {
@@ -691,5 +678,34 @@ class LeaveServiceTest {
         leaveService.initializeLeaveBalance(EMP_ID);
 
         verify(leaveTypeRepo, times(4)).save(any(LeaveType.class));
+    }
+
+    // Edge Cases — Holidays
+    @Test
+    @DisplayName("applyLeave — with Holidays → excludes holiday from total days")
+    void applyLeave_withHolidays_excludesHolidayFromTotal() {
+        // Use a confirmed Monday-Friday range in the future
+        // May 3, 2027 (Monday) to May 7, 2027 (Friday)
+        int year = 2027;
+        LocalDate mon = LocalDate.of(year, 5, 3);
+        LocalDate fri = LocalDate.of(year, 5, 7);
+        LocalDate wed = LocalDate.of(year, 5, 5);
+
+        Holiday holiday = Holiday.builder().holidayDate(wed).holidayName("Festive").build();
+
+        when(leaveTypeRepo.findById(LEAVE_TYPE_ID)).thenReturn(Optional.of(activeLeaveType));
+        when(holidayRepo.findByHolidayDateBetween(mon, fri)).thenReturn(List.of(holiday));
+        when(leaveBalanceRepo.findByEmployeeIdAndLeaveTypeIdAndYear(EMP_ID, LEAVE_TYPE_ID, mon.getYear()))
+                .thenReturn(Optional.of(leaveBalance));
+        when(leaveRequestRepo.existsOverlappingLeave(any(), any(), any(), any())).thenReturn(false);
+        
+        // Use an ArgumentCaptor to check the calculated days
+        ArgumentCaptor<LeaveRequest> captor = ArgumentCaptor.forClass(LeaveRequest.class);
+        when(leaveRequestRepo.save(captor.capture())).thenReturn(savedLeaveRequest);
+
+        leaveService.applyLeave(EMP_ID, EMP_EMAIL, dto(mon, fri));
+
+        // 5 days (Mon-Fri) - 1 holiday = 4 working days
+        assertThat(captor.getValue().getTotalDays()).isEqualTo(4);
     }
 }

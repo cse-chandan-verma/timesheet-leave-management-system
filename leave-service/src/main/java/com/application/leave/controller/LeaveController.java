@@ -29,8 +29,6 @@ public class LeaveController {
 
     private final LeaveService leaveService;
 
-    // ── Employee: Core Leave Operations
-
     @PostMapping("/apply")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER')")
     @Operation(summary = "Apply Leave", description = "Only Employee and Manager can apply the leave")
@@ -88,8 +86,6 @@ public class LeaveController {
         return ResponseEntity.ok(leaveService.getLeaveTypes());
     }
 
-    // ── Admin / Manager: Approval Workflow
-
     @GetMapping("/admin/pending")
     @PreAuthorize("hasRole('MANAGER')")
     @Operation(summary = "Get Pending Leave (MANAGER only)", description = "Fetch all SUBMITTED leave requests for the calling manager's team only.")
@@ -117,8 +113,6 @@ public class LeaveController {
 
         return ResponseEntity.ok(leaveService.rejectLeave(id, request));
     }
-
-    // ── Admin: Holiday Management
 
     @PostMapping("/admin/holidays")
     @PreAuthorize("hasRole('ADMIN')")

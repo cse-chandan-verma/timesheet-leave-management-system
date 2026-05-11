@@ -53,15 +53,12 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         ServerHttpResponse response = exchange.getResponse();
         String path = request.getURI().getPath();
-
-        // ── Step 1: Allow OPTIONS preflight requests ──────────────────────
-        // Browser sends OPTIONS before every real request to check CORS.
-        // If we block it here, CORS headers never reach the browser.
+        // Step 1
         if (HttpMethod.OPTIONS.equals(request.getMethod())) {
             return chain.filter(exchange);
         }
 
-        // ── Step 2: Allow public paths without token ──────────────────────
+        // Step 2
         String pathToCheck = path;
         if (pathToCheck.startsWith("/gateway")) {
             pathToCheck = pathToCheck.substring(8);
@@ -74,7 +71,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        // ── Step 3: Validate JWT for protected paths ──────────────────────
+        // Step 3
         if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
             response.setStatusCode(HttpStatus.UNAUTHORIZED);
             response.getHeaders().add("X-Auth-Error",

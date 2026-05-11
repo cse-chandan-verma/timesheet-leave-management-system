@@ -288,7 +288,6 @@ public class TimesheetService {
 
 		log.info("Timesheet submitted: employee={}, week={}, hours={}", employeeId, monday, totalHours);
 
-		// Step 7: Publish RabbitMQ event
 		eventPublisher.publishTimesheetSubmitted(employeeId, employeeEmail, request.getWeekStartDate(), totalHours);
 
 		return "Timesheet submitted successfully for week of " + monday
@@ -340,9 +339,7 @@ public class TimesheetService {
 				.collect(Collectors.toList());
 	}
 
-	// ADMIN / MANAGER OPERATIONS
-
-	// MANAGER: GET SUBMITTED TIMESHEETS FOR OWN TEAM ONLY
+	// Admin / Manager Operations
 	public List<WeeklyTimesheetResponse> getSubmittedTimesheets(Long managerId) {
 		List<Long> teamEmployeeIds = authServiceClient.getTeamEmployeeIds(managerId);
 		if (teamEmployeeIds.isEmpty())
@@ -467,8 +464,7 @@ public class TimesheetService {
 		return "Project '" + project.getProjectName() + "' deleted successfully.";
 	}
 
-	// PRIVATE HELPERS
-
+	// Private Helpers
 	private Timesheet createNewTimesheet(Long employeeId, String employeeName, LocalDate weekStart) {
 		Timesheet ts = Timesheet.builder()
 				.employeeId(employeeId)

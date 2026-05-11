@@ -31,6 +31,7 @@ spring:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
 
       routes:
+        # --- Standard Routes (with /gateway prefix for Frontend) ---
         - id: auth-service
           uri: lb://auth-service
           predicates:
@@ -65,6 +66,32 @@ spring:
             - Path=/gateway/notification/**
           filters:
             - StripPrefix=1
+
+        # --- Direct Routes (without prefix for Swagger/Testing) ---
+        - id: auth-service-direct
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/**
+
+        - id: timesheet-service-direct
+          uri: lb://timesheet-service
+          predicates:
+            - Path=/timesheet/**
+
+        - id: leave-service-direct
+          uri: lb://leave-service
+          predicates:
+            - Path=/leave/**
+
+        - id: admin-service-direct
+          uri: lb://admin-service
+          predicates:
+            - Path=/admin/**
+
+        - id: notification-service-direct
+          uri: lb://notification-service
+          predicates:
+            - Path=/notification/**
 
 eureka:
   instance:

@@ -12,9 +12,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Swagger Aggregator for Spring Cloud Gateway (WebFlux).
- */
 @Configuration
 public class SwaggerConfig {
 
@@ -22,7 +19,9 @@ public class SwaggerConfig {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .servers(List.of(
-                        new Server().url("/gateway").description("Default Gateway Server")
+                        // Absolute URL helps Swagger UI select the correct server by default
+                        new Server().url("http://localhost:8080/gateway").description("Local Gateway Server"),
+                        new Server().url("/gateway").description("Relative Gateway Server")
                 ));
     }
 
@@ -35,10 +34,10 @@ public class SwaggerConfig {
 
         Set<SwaggerUrl> urls = new LinkedHashSet<>();
 
-        urls.add(swaggerUrl("Auth Service",         "/gateway/auth/v3/api-docs"));
-        urls.add(swaggerUrl("Timesheet Service",    "/gateway/timesheet/v3/api-docs"));
-        urls.add(swaggerUrl("Leave Service",        "/gateway/leave/v3/api-docs"));
-        urls.add(swaggerUrl("Admin Service",        "/gateway/admin/v3/api-docs"));
+        urls.add(swaggerUrl("Auth Service", "/gateway/auth/v3/api-docs"));
+        urls.add(swaggerUrl("Timesheet Service", "/gateway/timesheet/v3/api-docs"));
+        urls.add(swaggerUrl("Leave Service", "/gateway/leave/v3/api-docs"));
+        urls.add(swaggerUrl("Admin Service", "/gateway/admin/v3/api-docs"));
 
         config.setUrls(urls);
         return config;
